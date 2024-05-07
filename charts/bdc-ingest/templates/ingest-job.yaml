@@ -30,17 +30,16 @@ spec:
           imagePullPolicy: {{ .Values.jobExecutor.image.pullPolicy | default "Always" }}
           resources:
             {{- toYaml .Values.jobExecutor.resources | nindent 12 }}
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           restartPolicy: {{ .Values.jobExecutor.restartPolicy | default "Never" }}
           command:
-            -
-      {{- with .Values.volumes }}
+            - bash ingest.sh
+          volumeMounts:
+            - mountPath: "/data"
+              name: "data-pvc"
       volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        - name: data-pvc
+          persistentVolumeClaim:
+            claimName: "{{ include "bdc-ingest.fullname" . }}-data-pvc"
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -53,4 +52,15 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "{{ include "bdc-ingest.fullname" . }}-data-pvc"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.dataStorage | default "1G" }}
 ---

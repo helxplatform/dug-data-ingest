@@ -2,6 +2,17 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Amount of storage needed to download all BDC data.
+dataStorage: 200Mi
+
+# Version of BDC to put into the LakeFS bucket.
+lakeFS:
+  host: https://lakefs.apps.renci.org/api/v1
+  username:
+  password:
+  repository: bdc-test
+  
+
 jobExecutor:
   image:
     repository: containers.renci.org/helxplatform/dug

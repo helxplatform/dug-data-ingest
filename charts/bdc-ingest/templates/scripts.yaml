@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "bdc-ingest.fullname" . }}-ingest-scripts"
+data:
+  ingest.sh: |-
+    #!/bin/sh
+
+    # Bash strict mode
+    set -euo pipefail
+    IFS=$'\n\t'
+
+    # A script for ingesting data from BDC into LakeFS.
+    echo Started ingest from BDC at `date`.
+    echo Started ingest from BDC at `date`. >> /data/logs.txt
+
+    # Step 1. Download the list of dbGaP IDs from BDC.
+    python bin/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv >> /data/logs.txt
+
+    # Step 2. Download the dbGaP XML files from BDC.
+    mkdir -p /data/bdc
+    python bin/get_dbgap_data_dicts.py data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc >> /data/logs.txt
+
+    # Report errors.
+    echo Downloads complete.
