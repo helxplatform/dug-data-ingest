@@ -14,7 +14,7 @@
 # that closely together unless it is unavoidable.
 #
 
-FROM alpine:latest
+FROM python:3-alpine
 
 # Update packages
 RUN apk update
