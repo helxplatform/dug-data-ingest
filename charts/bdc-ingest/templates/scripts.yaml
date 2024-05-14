@@ -14,11 +14,11 @@ data:
     echo Started ingest from BDC at `date`.
 
     # Step 1. Download the list of dbGaP IDs from BDC.
-    python bin/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv
+    python scripts/bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv
 
     # Step 2. Download the dbGaP XML files from BDC.
     mkdir -p /data/bdc
-    python bin/get_dbgap_data_dicts.py data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc
+    python scripts/bdc/get_dbgap_data_dicts.py data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc
 
     # Report errors.
     echo Downloads complete at `date`.

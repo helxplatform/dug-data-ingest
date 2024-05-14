@@ -1,0 +1,5 @@
+# Needed for CLI.
+click
+
+# Needed for HTTP(S) requests.
+requests

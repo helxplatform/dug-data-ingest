@@ -11,12 +11,12 @@ lakeFS:
   username:
   password:
   repository: bdc-test
-  
+
 
 jobExecutor:
   image:
-    repository: containers.renci.org/helxplatform/dug
-    tag: latest
+    repository: ghcr.io/helxplatform/dug-data-ingest
+    tag: add-bdc-ingest # TODO: change to `latest` once properly published.
     pullPolicy: Always
   restartPolicy: Never
   resources:

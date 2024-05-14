@@ -34,7 +34,14 @@ WORKDIR $HOME
 
 ENV PATH=$HOME/.local/bin:$PATH
 
+# Copy over the requirements file and install it as the local user.
+COPY --chown=$USER requirements.txt .
+RUN pip install --user -r requirements.txt
+
 # Copy over the scripts.
 RUN mkdir scripts
 COPY --chown=$USER scripts/ scripts/
 WORKDIR $HOME/scripts
+
+# Note that data should be kept at /data
+VOLUME /data
