@@ -9,6 +9,10 @@
 # The main downside is that this Docker image will be larger than it needs to be for just a single ingest tool,
 # but since I expect these scripts to be pretty small, I'm not too concerned yet.
 #
+# Another option would be to extend/incorporate Dug's own Docker image
+# (https://github.com/helxplatform/dug/blob/develop/Dockerfile), but I don't think we want to tie these two components
+# that closely together unless it is unavoidable.
+#
 
 FROM alpine:latest
 
