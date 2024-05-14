@@ -8,7 +8,6 @@ spec:
   selector:
     matchLabels:
       {{- include "bdc-ingest.selectorLabels" . | nindent 6 }}
-      app-name: dug-data-ingest-bdc
   template:
     metadata:
       {{- with .Values.podAnnotations }}
