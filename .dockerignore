@@ -1,11 +1,14 @@
 # We shouldn't really need this, as we should only COPY in the files we need.
 # But it's good to have this as a backup.
 
-# Definitely don't include the Helm charts.
+# Don't include the Helm charts.
 /charts
 
-# Definitely don't include the .github configuration stuff.
+# Don't include the .github configuration stuff.
 /.github
 
-# Definitely don't include IDE stuff.
+# Don't include Python stuff.
+/venv
+
+# Don't include IDE stuff.
 /.idea
