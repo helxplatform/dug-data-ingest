@@ -8,6 +8,7 @@ spec:
   selector:
     matchLabels:
       {{- include "bdc-ingest.selectorLabels" . | nindent 6 }}
+      app-name: dug-data-ingest-bdc
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -20,6 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      restartPolicy: {{ .Values.jobExecutor.restartPolicy | default "Never" }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -30,7 +32,6 @@ spec:
           imagePullPolicy: {{ .Values.jobExecutor.image.pullPolicy | default "Always" }}
           resources:
             {{- toYaml .Values.jobExecutor.resources | nindent 12 }}
-          restartPolicy: {{ .Values.jobExecutor.restartPolicy | default "Never" }}
           command:
             - bash ingest.sh
           volumeMounts:
