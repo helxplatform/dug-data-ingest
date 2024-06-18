@@ -3,3 +3,5 @@ click
 
 # Needed for HTTP(S) requests.
 requests
+
+git+https://github.com/helxplatform/avalon.git@v1.0.1
