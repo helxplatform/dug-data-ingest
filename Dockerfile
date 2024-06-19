@@ -19,6 +19,8 @@ FROM python:3-alpine
 # Update packages
 RUN apk update
 
+RUN apk add git
+
 # Update Python
 RUN pip install --upgrade pip
 
