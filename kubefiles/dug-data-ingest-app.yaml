@@ -1,0 +1,50 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dug-data-ingest-app-volume-pvc
+  labels:
+    app: dug-data-ingest-app
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: snapshots
+---
+kind: Job
+apiVersion: batch/v1
+metadata:
+  name: dug-data-ingest-app
+  labels:
+    app: dug-data-ingest-app
+spec:
+  template:
+    metadata:
+      labels:
+        app: dug-data-ingest-app
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: dug-data-ingest-app-volume
+          persistentVolumeClaim:
+            claimName: dug-data-ingest-app-volume-pvc
+      containers:
+        - name: dug-data-ingest-app
+          image: containers.renci.org/vgl/bdc-ingest
+          imagePullPolicy: Always
+          env:
+            - name: LAKEFS_HOST
+              value: https://lakefs.apps.renci.org/api/v1
+            - name: LAKEFS_PASSWORD
+              value: <ENTER HERE>
+            - name: LAKEFS_TEMPPATH
+              value: ./
+            - name: LAKEFS_USERNAME
+              value: <ENTER HERE>
+          volumeMounts:
+            - name: dug-data-ingest-app-volume
+              mountPath: /data
+          command: ["/bin/sh", "ingest.sh"]
+
