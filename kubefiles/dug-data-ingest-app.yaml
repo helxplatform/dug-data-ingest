@@ -32,7 +32,7 @@ spec:
             claimName: dug-data-ingest-app-volume-pvc
       containers:
         - name: dug-data-ingest-app
-          image: containers.renci.org/vgl/bdc-ingest
+          image: <ENTER_HERE>
           imagePullPolicy: Always
           env:
             - name: LAKEFS_HOST

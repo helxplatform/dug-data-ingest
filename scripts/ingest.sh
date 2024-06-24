@@ -18,7 +18,17 @@ mkdir -p /data/bdc
 python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program
 
 echo Uploading output to lakefs
-python lakefsclient_upload.py  -l "/data/bdc/" -r "data/bdc" -e "bdc-test" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/BioLINCC/" -r "_BioLINCC/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/COVID19/" -r "_COVID19/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/DIR/" -r "_DIR/" -e "bdc-test" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/imaging/" -r "_imaging/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/LungMAP/" -r "_LungMap/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/NSRR/" -r "_NSRR/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/parent/" -r "_parent/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/PCGC/" -r "_pcgc/" -e "bdc-test2" -b "main"
+#python lakefsclient_upload.py  -l "/data/bdc/RECOVER/" -r "_RECOVER/" -e "bdc-test2" -b "main"
+python lakefsclient_upload.py  -l "/data/bdc/topmed/" -r "" -e "bdc-test2" -b "main"
+
 
 # Report errors.
 echo Downloads complete at `date`.
