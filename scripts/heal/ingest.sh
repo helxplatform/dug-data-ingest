@@ -15,11 +15,11 @@ python heal/get_heal_platform_mds_data_dicts.py /data/heal
 
 # Step 2. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS
-# -l: local path
+# -l: local path (must end in `/`)
 # -r: remote path
 # -e: repository
 # -b: branch
-python lakefsclient_upload.py  -l "/data/heal/dbGaPs" -r "" -e "bdc-test3" -b "main"
+python lakefsclient_upload.py  -l "/data/heal/dbGaPs/" -r "" -e "bdc-test3" -b "main"
 
 # Report errors.
 echo Downloads complete at `date`.
