@@ -46,5 +46,5 @@ spec:
           volumeMounts:
             - name: dug-data-ingest-app-volume
               mountPath: /data
-          command: ["/bin/sh", "ingest.sh"]
+          command: ["/bin/sh", "bdc/ingest.sh"]
 
