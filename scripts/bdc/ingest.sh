@@ -31,7 +31,7 @@ echo Uploading output to lakefs
 #python lakefsclient_upload.py  -l "/data/bdc/parent/" -r "_parent/" -e "bdc-test2" -b "main"
 #python lakefsclient_upload.py  -l "/data/bdc/PCGC/" -r "_pcgc/" -e "bdc-test2" -b "main"
 #python lakefsclient_upload.py  -l "/data/bdc/RECOVER/" -r "_RECOVER/" -e "bdc-test2" -b "main"
-python ../lakefsclient_upload.py  -l "/data/bdc/topmed/" -r "" -e "bdc-test2" -b "main"
+python lakefsclient_upload.py  -l "/data/bdc/topmed/" -r "" -e "bdc-test2" -b "main"
 
 # Report errors.
 echo Downloads complete at `date`.

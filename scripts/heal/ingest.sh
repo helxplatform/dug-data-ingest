@@ -19,7 +19,7 @@ echo Uploading dbGaP XML files to LakeFS
 # -r: remote path
 # -e: repository
 # -b: branch
-python ../lakefsclient_upload.py  -l "/data/heal/dbGaPs" -r "" -e "bdc-test3" -b "main"
+python lakefsclient_upload.py  -l "/data/heal/dbGaPs" -r "" -e "bdc-test3" -b "main"
 
 # Report errors.
 echo Downloads complete at `date`.
