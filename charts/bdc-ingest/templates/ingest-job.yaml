@@ -1,15 +1,12 @@
-apiVersion: batch/v1
-kind: Job
 {{- $jobExecutor := .Values.jobExecutor -}}
 {{- $lakeFS := .Values.lakeFS -}}
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: {{ include "bdc-ingest.fullname" . }}
   labels:
     {{- include "bdc-ingest.labels" . | nindent 4 }}
 spec:
-  selector:
-    matchLabels:
-      {{- include "bdc-ingest.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with $jobExecutor.podAnnotations }}
@@ -22,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      restartPolicy: {{ $jobExecutor.restartPolicy | default "Never" }}
+      restartPolicy: {{ default "Never" $jobExecutor.restartPolicy }}
       securityContext:
         {{- toYaml $jobExecutor.podSecurityContext | nindent 8 }}
       containers:
@@ -42,8 +39,9 @@ spec:
               value: /data/lakefs
           resources:
             {{- toYaml $jobExecutor.resources | nindent 12 }}
-          command:
-            - bash bdc/ingest.sh
+          command: ["/bin/bash", "bdc/ingest.sh"]
+          # command: [ "/bin/bash", "-c", "--" ]
+          # args: [ "while true; do sleep 30; done;" ]
           volumeMounts:
             - mountPath: "/data"
               name: "data-pvc"
@@ -74,4 +72,3 @@ spec:
   resources:
     requests:
       storage: {{ .Values.dataStorage | default "1G" }}
----
