@@ -1,6 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 {{- $jobExecutor := .Values.jobExecutor -}}
+{{- $lakeFS := .Values.lakeFS -}}
 metadata:
   name: {{ include "bdc-ingest.fullname" . }}
   labels:
@@ -30,6 +31,15 @@ spec:
             {{- toYaml $jobExecutor.securityContext | nindent 12 }}
           image: {{ $jobExecutor.image.repository }}
           imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
+          env:
+            - name: LAKEFS_HOST
+              value: {{ $lakeFS.host }}
+            - name: LAKEFS_USERNAME
+              value: {{ $lakeFS.username }}
+            - name: LAKEFS_PASSWORD
+              value: {{ $lakeFS.password }}
+            - name: LAKEFS_TEMPPATH
+              value: /data/lakefs
           resources:
             {{- toYaml $jobExecutor.resources | nindent 12 }}
           command:
