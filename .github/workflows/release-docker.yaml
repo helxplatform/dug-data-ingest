@@ -1,9 +1,12 @@
 name: 'Publish Docker image to GitHub Packages'
 
-on:
-  push:
-  release:
-    types: [published]
+# We don't actually want to publish this to GitHub Packages, because we'd rather host them at
+# containers.renci.org. However, I'm going to leave this workflow here (without any triggers)
+# in case it's needed in the future. Just uncomment the `on:` triggers if needed.
+#
+#on:
+#  release:
+#    types: [published]
 
 env:
   REGISTRY: ghcr.io
