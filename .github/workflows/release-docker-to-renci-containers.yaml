@@ -1,0 +1,54 @@
+# Release Docker package to RENCI Containers (https://containers.renci.org/)
+# Code initially copied from https://github.com/helxplatform/dug/blob/a4917a7c0f4b21fe4d5daca7c6a733555f80f8ac/.github/workflows/build-push-release.yml
+
+name: "Release Docker package to RENCI Containers"
+
+# Triggered on a release of this code. Uncomment the on:push trigger if you need to test this.
+on:
+  push:
+  release:
+    types: [published]
+
+jobs:
+  publish-docker-to-renci-containers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images:
+            ghcr.io/${{ github.repository }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          logout: true
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: containers.renci.org
+          username: ${{ secrets.CONTAINERHUB_USERNAME }}
+          password: ${{ secrets.CONTAINERHUB_TOKEN }}
+          logout: true
+
+      # Notes on Cache:
+      # https://docs.docker.com/build/ci/github-actions/examples/#inline-cache
+      - name: Build Push Container
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          context: .
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: BRANCH_NAME=${{ github.event.release.target_commitish }}
