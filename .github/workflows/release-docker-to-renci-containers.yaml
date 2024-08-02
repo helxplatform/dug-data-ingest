@@ -24,7 +24,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images:
+          images: |
             containers.renci.org/${{ github.repository }}
             ${{ github.repository }}
 
