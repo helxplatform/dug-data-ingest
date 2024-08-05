@@ -4,9 +4,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "bdc-ingest.fullname" . }}
+  name: {{ include "dug-data-ingest.fullname" . }}
   labels:
-    {{- include "bdc-ingest.labels" . | nindent 4 }}
+    {{- include "dug-data-ingest.labels" . | nindent 4 }}
 spec:
   backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
   template:
@@ -16,7 +16,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "bdc-ingest.labels" . | nindent 8 }}
+        {{- include "dug-data-ingest.labels" . | nindent 8 }}
         {{- with $jobExecutor.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -48,7 +48,7 @@ spec:
       volumes:
         - name: data-pvc
           persistentVolumeClaim:
-            claimName: "{{ include "bdc-ingest.fullname" . }}-data-pvc"
+            claimName: "{{ include "dug-data-ingest.fullname" . }}-data-pvc"
       {{- with $jobExecutor.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -65,7 +65,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: "{{ include "bdc-ingest.fullname" . }}-data-pvc"
+  name: "{{ include "dug-data-ingest.fullname" . }}-data-pvc"
 spec:
   accessModes:
     - ReadWriteOnce
