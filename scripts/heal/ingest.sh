@@ -25,7 +25,7 @@ export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 
 # Sync.
-rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" --combined - --progress --track-renames
+rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" --progress --track-renames
 
 # Report errors.
 echo Downloads complete at `date`.
