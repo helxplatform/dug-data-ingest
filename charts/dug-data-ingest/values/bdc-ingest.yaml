@@ -1,6 +1,6 @@
 # Values file for BDC ingest
 
-nameOverride: bdc-ingest
+nameOverride: dug-data-ingest-bdc
 dataStorage: 200Mi
 jobExecutor:
   script: bdc/ingest.sh
