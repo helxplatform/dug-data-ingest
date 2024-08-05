@@ -19,7 +19,6 @@ jobExecutor:
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 1
-  securityContext: {}
   resources:
     limits:
       cpu: 1000m
@@ -27,3 +26,9 @@ jobExecutor:
     requests:
       cpu: 500m
       memory: 1G
+  securityContext: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: {}
