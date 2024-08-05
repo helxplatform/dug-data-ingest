@@ -17,21 +17,34 @@ python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv
 mkdir -p /data/bdc
 python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program
 
-echo Uploading output to lakefs
-# -l: local path
-# -r: remote path
-# -e: repository
-# -b: branch
-#python lakefsclient_upload.py  -l "/data/bdc/BioLINCC/" -r "_BioLINCC/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/COVID19/" -r "_COVID19/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/DIR/" -r "_DIR/" -e "bdc-test" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/imaging/" -r "_imaging/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/LungMAP/" -r "_LungMap/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/NSRR/" -r "_NSRR/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/parent/" -r "_parent/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/PCGC/" -r "_pcgc/" -e "bdc-test2" -b "main"
-#python lakefsclient_upload.py  -l "/data/bdc/RECOVER/" -r "_RECOVER/" -e "bdc-test2" -b "main"
-python lakefsclient_upload.py  -l "/data/bdc/topmed/" -r "" -e "bdc-test2" -b "main"
+# Step 3. Upload the dbGaP XML files to BDC.
+echo Uploading dbGaP XML files to LakeFS using Rclone.
+
+# Set up RClone environment variables.
+export RCLONE_CONFIG_LAKEFS_TYPE=s3
+export RCLONE_CONFIG_LAKEFS_PROVIDER=Other
+export RCLONE_CONFIG_LAKEFS_ENDPOINT="$LAKEFS_HOST"
+export RCLONE_CONFIG_LAKEFS_ACCESS_KEY_ID="$LAKEFS_USERNAME"
+export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
+export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
+
+# Sync (https://rclone.org/commands/rclone_sync/)
+export RCLONE_PARAMS=--progress --track-renames --no-update-modtime
+# --progress: Display progress.
+# --track-renames: If a file exists but has only been renamed, record that on the destination.
+# --no-update-modtime: Don't update the last-modified time if the file is identical.
+
+rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_PARAMS
+rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_PARAMS
+rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_PARAMS
+rclone sync "/data/bdc/DIR/" "lakefs:$LAKEFS_REPOSITORY/main/DIR/" $RCLONE_PARAMS
+rclone sync "/data/bdc/imaging/" "lakefs:$LAKEFS_REPOSITORY/main/imaging/" $RCLONE_PARAMS
+rclone sync "/data/bdc/LungMAP/" "lakefs:$LAKEFS_REPOSITORY/main/LungMAP/" $RCLONE_PARAMS
+rclone sync "/data/bdc/NSRR/" "lakefs:$LAKEFS_REPOSITORY/main/NSRR/" $RCLONE_PARAMS
+rclone sync "/data/bdc/parent/" "lakefs:$LAKEFS_REPOSITORY/main/parent/" $RCLONE_PARAMS
+rclone sync "/data/bdc/PCGC/" "lakefs:$LAKEFS_REPOSITORY/main/PCGC/" $RCLONE_PARAMS
+rclone sync "/data/bdc/RECOVER/" "lakefs:$LAKEFS_REPOSITORY/main/RECOVER/" $RCLONE_PARAMS
+rclone sync "/data/bdc/topmed/" "lakefs:$LAKEFS_REPOSITORY/main/topmed/" $RCLONE_PARAMS
 
 # Report errors.
 echo Downloads complete at `date`.
