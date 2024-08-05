@@ -2,7 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# When should this job be executed?
+# When should this CronJob be executed? See
+# https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax for syntax.
 # Default: at 11am every Wednesday
 schedule: "0 11 * * wed"
 

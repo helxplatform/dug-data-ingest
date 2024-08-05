@@ -8,7 +8,7 @@ metadata:
   labels:
     {{- include "dug-data-ingest.labels" . | nindent 4 }}
 spec:
-  schedule: {{ .Values.schedule }}
+  schedule: "{{ .Values.schedule }}"
   jobTemplate:
     spec:
       backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
