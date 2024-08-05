@@ -1,4 +1,5 @@
 {{- $jobExecutor := .Values.jobExecutor -}}
+{{- $script := .Values.jobExecutor.script | required ".Values.jobExecutor.script is required." -}}
 {{- $lakeFS := .Values.lakeFS -}}
 apiVersion: batch/v1
 kind: Job
@@ -19,14 +20,12 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      restartPolicy: {{ default "Never" $jobExecutor.restartPolicy }}
-      securityContext:
-        {{- toYaml $jobExecutor.podSecurityContext | nindent 8 }}
+      restartPolicy: {{ $jobExecutor.restartPolicy | default "Never" }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml $jobExecutor.securityContext | nindent 12 }}
-          image: {{ $jobExecutor.image.repository }}
+          image: {{ $jobExecutor.image.repository }}:{{ $jobExecutor.image.tag }}
           imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
           env:
             - name: LAKEFS_HOST
@@ -39,7 +38,7 @@ spec:
               value: /data/lakefs
           resources:
             {{- toYaml $jobExecutor.resources | nindent 12 }}
-          command: ["/bin/bash", "{{$jobExecutor.script}}"]
+          command: ["/bin/bash", "{{$script}}"]
           # command: [ "/bin/bash", "-c", "--" ]
           # args: [ "while true; do sleep 30; done;" ]
           volumeMounts:
