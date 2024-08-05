@@ -2,67 +2,70 @@
 {{- $script := .Values.jobExecutor.script | required ".Values.jobExecutor.script is required." -}}
 {{- $lakeFS := .Values.lakeFS -}}
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: {{ include "dug-data-ingest.fullname" . }}
   labels:
     {{- include "dug-data-ingest.labels" . | nindent 4 }}
 spec:
-  backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
-  template:
-    metadata:
-      {{- with $jobExecutor.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      labels:
-        {{- include "dug-data-ingest.labels" . | nindent 8 }}
-        {{- with $jobExecutor.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+  schedule: {{ .Values.schedule }}
+  jobTemplate:
     spec:
-      restartPolicy: {{ $jobExecutor.restartPolicy | default "Never" }}
-      containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml $jobExecutor.securityContext | nindent 12 }}
-          image: {{ $jobExecutor.image.repository }}:{{ $jobExecutor.image.tag }}
-          imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
-          env:
-            - name: LAKEFS_HOST
-              value: {{ $lakeFS.host }}
-            - name: LAKEFS_USERNAME
-              value: {{ $lakeFS.username }}
-            - name: LAKEFS_PASSWORD
-              value: {{ $lakeFS.password }}
-            - name: LAKEFS_REPOSITORY
-              value: {{ .Values.jobExecutor.lakeFSRepository }}
-            - name: LAKEFS_TEMPPATH
-              value: /data/lakefs
-          resources:
-            {{- toYaml $jobExecutor.resources | nindent 12 }}
-          command: ["/bin/bash", "{{$script}}"]
-          # command: [ "/bin/bash", "-c", "--" ]
-          # args: [ "while true; do sleep 30; done;" ]
-          volumeMounts:
-            - mountPath: "/data"
-              name: "data-pvc"
-      volumes:
-        - name: data-pvc
-          persistentVolumeClaim:
-            claimName: "{{ include "dug-data-ingest.fullname" . }}-data-pvc"
-      {{- with $jobExecutor.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $jobExecutor.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $jobExecutor.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
+      template:
+        metadata:
+          {{- with $jobExecutor.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+          labels:
+            {{- include "dug-data-ingest.labels" . | nindent 8 }}
+            {{- with $jobExecutor.podLabels }}
+            {{- toYaml . | nindent 8 }}
+            {{- end }}
+        spec:
+          restartPolicy: {{ $jobExecutor.restartPolicy | default "Never" }}
+          containers:
+            - name: {{ .Chart.Name }}
+              securityContext:
+                {{- toYaml $jobExecutor.securityContext | nindent 12 }}
+              image: {{ $jobExecutor.image.repository }}:{{ $jobExecutor.image.tag }}
+              imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
+              env:
+                - name: LAKEFS_HOST
+                  value: {{ $lakeFS.host }}
+                - name: LAKEFS_USERNAME
+                  value: {{ $lakeFS.username }}
+                - name: LAKEFS_PASSWORD
+                  value: {{ $lakeFS.password }}
+                - name: LAKEFS_REPOSITORY
+                  value: {{ .Values.jobExecutor.lakeFSRepository }}
+                - name: LAKEFS_TEMPPATH
+                  value: /data/lakefs
+              resources:
+                {{- toYaml $jobExecutor.resources | nindent 12 }}
+              command: ["/bin/bash", "{{$script}}"]
+              # command: [ "/bin/bash", "-c", "--" ]
+              # args: [ "while true; do sleep 30; done;" ]
+              volumeMounts:
+                - mountPath: "/data"
+                  name: "data-pvc"
+          volumes:
+            - name: data-pvc
+              persistentVolumeClaim:
+                claimName: "{{ include "dug-data-ingest.fullname" . }}-data-pvc"
+          {{- with $jobExecutor.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+          {{- with $jobExecutor.affinity }}
+          affinity:
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+          {{- with $jobExecutor.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

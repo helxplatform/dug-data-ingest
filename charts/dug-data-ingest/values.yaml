@@ -2,6 +2,10 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# When should this job be executed?
+# Default: at 11am every Wednesday
+schedule: "0 11 * * wed"
+
 # Amount of storage needed to download all BDC data.
 dataStorage: 200Mi
 
