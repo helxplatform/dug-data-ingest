@@ -10,7 +10,6 @@ lakeFS:
   host: https://lakefs.apps.renci.org/api/v1
   username: TODO # see in values-secret.yaml
   password: TODO # see in values-secret.yaml
-  repository: bdc-test
 
 # Settings for the Job executor pod.
 jobExecutor:
