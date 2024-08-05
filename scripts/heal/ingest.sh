@@ -14,12 +14,18 @@ rm -rf /data/*
 python heal/get_heal_platform_mds_data_dicts.py /data/heal
 
 # Step 2. Upload the files to BDC.
-echo Uploading dbGaP XML files to LakeFS
-# -l: local path (must end in `/`)
-# -r: remote path
-# -e: repository
-# -b: branch
-python lakefsclient_upload.py  -l "/data/heal/dbGaPs/" -r "" -e "bdc-test3" -b "main"
+echo Uploading dbGaP XML files to LakeFS using Rclone.
+
+# Set up RClone environment variables.
+export RCLONE_CONFIG_LAKEFS_TYPE=s3
+export RCLONE_CONFIG_LAKEFS_PROVIDER=Other
+export RCLONE_CONFIG_LAKEFS_ENDPOINT="$LAKEFS_HOST"
+export RCLONE_CONFIG_LAKEFS_ACCESS_KEY_ID="$LAKEFS_USERNAME"
+export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_USERNAME"
+export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
+
+# Sync.
+rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/path" --combined - --progress --track-renames
 
 # Report errors.
 echo Downloads complete at `date`.
