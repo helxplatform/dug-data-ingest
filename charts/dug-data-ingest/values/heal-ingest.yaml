@@ -4,4 +4,4 @@ nameOverride: heal-ingest
 dataStorage: 200Mi
 jobExecutor:
   script: heal/ingest.sh
-  lakeFSRepository: bdc-test3
+  lakeFSRepository: heal-mds-import
