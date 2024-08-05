@@ -16,12 +16,12 @@ spec:
         metadata:
           {{- with $jobExecutor.podAnnotations }}
           annotations:
-            {{- toYaml . | nindent 10 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           labels:
-            {{- include "dug-data-ingest.labels" . | nindent 10 }}
+            {{- include "dug-data-ingest.labels" . | nindent 12 }}
             {{- with $jobExecutor.podLabels }}
-            {{- toYaml . | nindent 10 }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
         spec:
           restartPolicy: {{ $jobExecutor.restartPolicy | default "Never" }}
