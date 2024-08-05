@@ -1,0 +1,4 @@
+# Values file for BDC ingest
+
+jobExecutor:
+  script: bdc/ingest.sh

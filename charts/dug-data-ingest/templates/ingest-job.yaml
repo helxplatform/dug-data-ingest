@@ -39,7 +39,7 @@ spec:
               value: /data/lakefs
           resources:
             {{- toYaml $jobExecutor.resources | nindent 12 }}
-          command: ["/bin/bash", "bdc/ingest.sh"]
+          command: ["/bin/bash", "{{$jobExecutor.script}}"]
           # command: [ "/bin/bash", "-c", "--" ]
           # args: [ "while true; do sleep 30; done;" ]
           volumeMounts:
