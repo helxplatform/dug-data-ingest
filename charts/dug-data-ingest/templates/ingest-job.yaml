@@ -8,7 +8,7 @@ metadata:
   labels:
     {{- include "bdc-ingest.labels" . | nindent 4 }}
 spec:
-  backoffLimit: {{ $jobExecutor.backoffLimit | default 1 }}
+  backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
   template:
     metadata:
       {{- with $jobExecutor.podAnnotations }}
