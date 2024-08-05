@@ -18,6 +18,7 @@ jobExecutor:
     tag: add-bdc-ingest
     pullPolicy: Always
   restartPolicy: Never
+  backoffLimit: 1
   securityContext: {}
   resources:
     limits:
