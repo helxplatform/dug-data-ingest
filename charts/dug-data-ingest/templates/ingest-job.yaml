@@ -1,6 +1,5 @@
 {{- $jobExecutor := .Values.jobExecutor -}}
 {{- $script := .Values.jobExecutor.script | required ".Values.jobExecutor.script is required." -}}
-{{- $lakeFSRepository := .Values.jobExecutor.lakeFSRepository | required ".Values.jobExecutor.lakeFSRepository is required." -}}
 {{- $lakeFS := .Values.lakeFS -}}
 apiVersion: batch/v1
 kind: Job
@@ -37,7 +36,7 @@ spec:
             - name: LAKEFS_PASSWORD
               value: {{ $lakeFS.password }}
             - name: LAKEFS_REPOSITORY
-              value: {{ $lakeFSRepository }}
+              value: {{ .Values.jobExecutor.lakeFSRepository }}
             - name: LAKEFS_TEMPPATH
               value: /data/lakefs
           resources:
