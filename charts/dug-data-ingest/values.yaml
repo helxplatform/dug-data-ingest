@@ -14,10 +14,11 @@ lakeFS:
 # Settings for the Job executor pod.
 jobExecutor:
   image:
-    repository: ggvaidya/bdc-ingest # ghcr.io/helxplatform/dug-data-ingest
-    tag: latest # add-bdc-ingest # TODO: change to `latest` once properly published.
+    repository: containers.renci.org/helxplatform/dug-data-ingest
+    tag: add-bdc-ingest
     pullPolicy: Always
   restartPolicy: Never
+  securityContext: {}
   resources:
     limits:
       cpu: 1000m
