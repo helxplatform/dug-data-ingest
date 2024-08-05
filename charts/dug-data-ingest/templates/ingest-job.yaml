@@ -19,7 +19,7 @@ spec:
             {{- toYaml . | nindent 8 }}
           {{- end }}
           labels:
-            {{- include "dug-data-ingest.labels" . | nindent 8 }}
+            {{- include "dug-data-ingest.labels" . | nindent 10 }}
             {{- with $jobExecutor.podLabels }}
             {{- toYaml . | nindent 8 }}
             {{- end }}
@@ -28,7 +28,7 @@ spec:
           containers:
             - name: {{ .Chart.Name }}
               securityContext:
-                {{- toYaml $jobExecutor.securityContext | nindent 12 }}
+                {{- toYaml $jobExecutor.securityContext | nindent 16 }}
               image: {{ $jobExecutor.image.repository }}:{{ $jobExecutor.image.tag }}
               imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
               env:
@@ -43,7 +43,7 @@ spec:
                 - name: LAKEFS_TEMPPATH
                   value: /data/lakefs
               resources:
-                {{- toYaml $jobExecutor.resources | nindent 12 }}
+                {{- toYaml $jobExecutor.resources | nindent 16 }}
               command: ["/bin/bash", "{{$script}}"]
               # command: [ "/bin/bash", "-c", "--" ]
               # args: [ "while true; do sleep 30; done;" ]
@@ -56,15 +56,15 @@ spec:
                 claimName: "{{ include "dug-data-ingest.fullname" . }}-data-pvc"
           {{- with $jobExecutor.nodeSelector }}
           nodeSelector:
-            {{- toYaml . | nindent 8 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with $jobExecutor.affinity }}
           affinity:
-            {{- toYaml . | nindent 8 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with $jobExecutor.tolerations }}
           tolerations:
-            {{- toYaml . | nindent 8 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
 ---
 apiVersion: v1
