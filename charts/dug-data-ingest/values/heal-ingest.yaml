@@ -1,0 +1,6 @@
+# Values file for HEAL ingest
+
+nameOverride: heal-ingest
+dataStorage: 200Mi
+jobExecutor:
+  script: heal/ingest.sh
