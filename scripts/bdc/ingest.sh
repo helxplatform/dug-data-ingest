@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 
 # Bash strict mode
-set -euox pipefail
-IFS=$'\n\t'
+set -euxo pipefail
+#IFS=$'\n\t'
 
 # A script for ingesting data from BDC into LakeFS.
 echo Started ingest from BDC at `date`.
@@ -40,7 +40,6 @@ RCLONE_FLAGS="${RCLONE_FLAG_LIST[@]}"
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
 touch /data/bdc/test.txt
-echo rclone sync "/data/" "lakefs:$LAKEFS_REPOSITORY/main/test/" $RCLONE_FLAGS
 rclone sync "/data/" "lakefs:$LAKEFS_REPOSITORY/main/test/" $RCLONE_FLAGS
 #rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_FLAGS
 #rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_FLAGS
