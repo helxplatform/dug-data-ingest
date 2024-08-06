@@ -34,8 +34,7 @@ export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
-RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
-# --progress: Display progress.
+RCLONE_FLAGS="--track-renames --no-update-modtime"
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
