@@ -30,7 +30,7 @@ export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 
 # We would normally put each project into its own LakeFS repository, configurable in
 # this file, but for testing I'm going to put them all into the same repository.
-export LAKEFS_REPOSITORY="bdc-test4"
+LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
 RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
@@ -39,6 +39,7 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
 touch /data/bdc/test.txt
+echo rclone sync "/data/" "lakefs:$LAKEFS_REPOSITORY/main/test/" $RCLONE_FLAGS
 rclone sync "/data/" "lakefs:$LAKEFS_REPOSITORY/main/test/" $RCLONE_FLAGS
 #rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_FLAGS
 #rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_FLAGS
