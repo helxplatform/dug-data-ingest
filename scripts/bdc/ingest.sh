@@ -29,7 +29,7 @@ export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 
 # Sync (https://rclone.org/commands/rclone_sync/)
-export RCLONE_PARAMS=--progress --track-renames --no-update-modtime
+export RCLONE_PARAMS="--progress --track-renames --no-update-modtime"
 # --progress: Display progress.
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
