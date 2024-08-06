@@ -2,6 +2,7 @@
 
 # Bash strict mode
 set -euo pipefail
+set +x
 IFS=$'\n\t'
 
 # A script for ingesting data from BDC into LakeFS.
