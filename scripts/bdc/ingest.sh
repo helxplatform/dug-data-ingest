@@ -38,7 +38,6 @@ export RCLONE_PARAMS="--progress --track-renames --no-update-modtime"
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
-rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_PARAMS
 rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_PARAMS
 rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_PARAMS
 rclone sync "/data/bdc/DIR/" "lakefs:$LAKEFS_REPOSITORY/main/DIR/" $RCLONE_PARAMS
