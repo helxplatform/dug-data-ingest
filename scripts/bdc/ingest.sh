@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Bash strict mode
 set -euo pipefail
@@ -33,21 +33,21 @@ export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 export LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
-export RCLONE_PARAMS="--progress --track-renames --no-update-modtime"
+RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --progress: Display progress.
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
-rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_PARAMS
-rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_PARAMS
-rclone sync "/data/bdc/DIR/" "lakefs:$LAKEFS_REPOSITORY/main/DIR/" $RCLONE_PARAMS
-rclone sync "/data/bdc/imaging/" "lakefs:$LAKEFS_REPOSITORY/main/imaging/" $RCLONE_PARAMS
-rclone sync "/data/bdc/LungMAP/" "lakefs:$LAKEFS_REPOSITORY/main/LungMAP/" $RCLONE_PARAMS
-rclone sync "/data/bdc/NSRR/" "lakefs:$LAKEFS_REPOSITORY/main/NSRR/" $RCLONE_PARAMS
-rclone sync "/data/bdc/parent/" "lakefs:$LAKEFS_REPOSITORY/main/parent/" $RCLONE_PARAMS
-rclone sync "/data/bdc/PCGC/" "lakefs:$LAKEFS_REPOSITORY/main/PCGC/" $RCLONE_PARAMS
-rclone sync "/data/bdc/RECOVER/" "lakefs:$LAKEFS_REPOSITORY/main/RECOVER/" $RCLONE_PARAMS
-rclone sync "/data/bdc/topmed/" "lakefs:$LAKEFS_REPOSITORY/main/topmed/" $RCLONE_PARAMS
+rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_FLAGS
+rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_FLAGS
+rclone sync "/data/bdc/DIR/" "lakefs:$LAKEFS_REPOSITORY/main/DIR/" $RCLONE_FLAGS
+rclone sync "/data/bdc/imaging/" "lakefs:$LAKEFS_REPOSITORY/main/imaging/" $RCLONE_FLAGS
+rclone sync "/data/bdc/LungMAP/" "lakefs:$LAKEFS_REPOSITORY/main/LungMAP/" $RCLONE_FLAGS
+rclone sync "/data/bdc/NSRR/" "lakefs:$LAKEFS_REPOSITORY/main/NSRR/" $RCLONE_FLAGS
+rclone sync "/data/bdc/parent/" "lakefs:$LAKEFS_REPOSITORY/main/parent/" $RCLONE_FLAGS
+rclone sync "/data/bdc/PCGC/" "lakefs:$LAKEFS_REPOSITORY/main/PCGC/" $RCLONE_FLAGS
+rclone sync "/data/bdc/RECOVER/" "lakefs:$LAKEFS_REPOSITORY/main/RECOVER/" $RCLONE_FLAGS
+rclone sync "/data/bdc/topmed/" "lakefs:$LAKEFS_REPOSITORY/main/topmed/" $RCLONE_FLAGS
 
 # Report errors.
 echo Downloads complete at `date`.
