@@ -8,3 +8,5 @@ When installing Helm charts from this directory, make sure you include the follo
 - `values-secret.yaml`: Secret login values. 
   - You can copy `values-secret.yaml.txt` to `values-secret.yaml` and then fill in the TODOs.
 - One of the files from `values/` for the specific ingest you want.
+
+You should install multiple CronJobs using this template for each data ingest you want to support.
