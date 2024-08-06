@@ -28,6 +28,10 @@ export RCLONE_CONFIG_LAKEFS_ACCESS_KEY_ID="$LAKEFS_USERNAME"
 export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 
+# We would normally put each project into its own LakeFS repository, configurable in
+# this file, but for testing I'm going to put them all into the same repository.
+export LAKEFS_REPOSITORY="bdc-test4"
+
 # Sync (https://rclone.org/commands/rclone_sync/)
 export RCLONE_PARAMS="--progress --track-renames --no-update-modtime"
 # --progress: Display progress.
