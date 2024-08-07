@@ -26,7 +26,7 @@ RUN apk add bash
 RUN apk add rclone
 
 # Needed to send commands to LakeFS.
-RUN apk add wget
+RUN apk add curl
 
 # Needed to install tee to save logs to a file.
 RUN apk add coreutils
