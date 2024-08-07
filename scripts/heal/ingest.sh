@@ -38,7 +38,7 @@ rclone sync "/data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
 rclone sync "/data/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
-curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commit" \
+curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
   -H "Content-Type: application/json" \
   -d "{\"message\": \"Updated HEAL data dictionaries starting at ${START_DATE}.\"}"
 
