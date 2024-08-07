@@ -25,6 +25,9 @@ RUN apk add bash
 # Needed to sync with LakeFS.
 RUN apk add rclone
 
+# Needed to send commands to LakeFS.
+RUN apk add wget
+
 # Update Python
 RUN pip install --upgrade pip
 

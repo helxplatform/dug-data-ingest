@@ -1,23 +1,25 @@
 #!/usr/bin/bash
 
-# Bash strict mode
+# Bash strict mode (minus IFS change, since we're not using arrays).
 set -euo pipefail
 
-# But not the IFS change, because we're not using arrays and it
-# messes up RCLONE_FLAGS.
-
 # A script for ingesting data from BDC into LakeFS.
-echo Started ingest from BDC at `date`.
+START_DATE=$(date)
+echo "Started ingest from BDC at ${START_DATE}."
 
-echo cleaning /data directory
+# Step 1. Prepare directory.
+echo Cleaning /data directory
 rm -rf /data/*
 
+echo Create log directory.
+mkdir -p /data/logs
+
 # Step 1. Download the list of dbGaP IDs from BDC.
-python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv
+python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv 2>&1 | tee /data/logs/get_bdc_studies_from_gen3.log
 
 # Step 2. Download the dbGaP XML files from BDC.
 mkdir -p /data/bdc
-python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program
+python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program 2>&1 | tee /data/logs/get_dbgap_data_dicts.log
 
 # Step 3. Upload the dbGaP XML files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -52,5 +54,13 @@ rclone sync "/data/bdc/PCGC/" "lakefs:$LAKEFS_REPOSITORY/main/PCGC/" $RCLONE_FLA
 rclone sync "/data/bdc/RECOVER/" "lakefs:$LAKEFS_REPOSITORY/main/RECOVER/" $RCLONE_FLAGS
 rclone sync "/data/bdc/topmed/" "lakefs:$LAKEFS_REPOSITORY/main/topmed/" $RCLONE_FLAGS
 
-# Report errors.
+# Save logs into repository as well.
+rclone sync "/data/logs" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
+
+# Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
+curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commit" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
+
+# Report completion.
 echo Downloads complete at `date`.
