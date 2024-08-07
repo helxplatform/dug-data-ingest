@@ -15,11 +15,11 @@ echo Create log directory.
 mkdir -p /data/logs
 
 # Step 1. Download the list of dbGaP IDs from BDC.
-python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv 2>&1 | tee /data/logs/get_bdc_studies_from_gen3.log
+python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv 2>&1 | tee /data/logs/get_bdc_studies_from_gen3.txt
 
 # Step 2. Download the dbGaP XML files from BDC.
 mkdir -p /data/bdc
-python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program 2>&1 | tee /data/logs/get_dbgap_data_dicts.log
+python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program 2>&1 | tee /data/logs/get_dbgap_data_dicts.txt
 
 # Step 3. Upload the dbGaP XML files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
