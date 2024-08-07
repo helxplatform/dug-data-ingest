@@ -5,7 +5,6 @@ name: "Release Docker package to RENCI Containers"
 
 # Triggered on a release of this code. Uncomment the on:push trigger if you need to test this.
 on:
-  push:
   release:
     types: [published]
 
