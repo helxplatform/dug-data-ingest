@@ -28,6 +28,9 @@ RUN apk add rclone
 # Needed to send commands to LakeFS.
 RUN apk add wget
 
+# Needed to save logs.
+RUN apk add tee
+
 # Update Python
 RUN pip install --upgrade pip
 
