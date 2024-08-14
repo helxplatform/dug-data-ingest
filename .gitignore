@@ -1,3 +1,9 @@
+# Don't includes any values-secret.yaml file.
+values-secret.yaml
+
+# Don't include IntelliJ settings (.idea).
+/.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

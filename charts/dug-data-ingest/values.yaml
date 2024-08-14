@@ -1,0 +1,39 @@
+# Default values for bdc-ingest.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# When should this CronJob be executed? See
+# https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax for syntax.
+# Default: at 11am every Wednesday
+schedule: "0 11 * * wed"
+
+# Amount of storage needed to download all BDC data.
+dataStorage: 200Mi
+
+# LakeFS information.
+lakeFS:
+  host: https://lakefs.apps.renci.org
+  username: TODO # see in values-secret.yaml
+  password: TODO # see in values-secret.yaml
+
+# Settings for the Job executor pod.
+jobExecutor:
+  image:
+    repository: containers.renci.org/helxplatform/dug-data-ingest
+    tag: add-bdc-ingest
+    pullPolicy: Always
+  restartPolicy: Never
+  backoffLimit: 0
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1G
+    requests:
+      cpu: 500m
+      memory: 1G
+  securityContext: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  affinity: {}
+  tolerations: {}

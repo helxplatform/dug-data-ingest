@@ -1,0 +1,9 @@
+# Needed for CLI.
+click
+
+# Needed for HTTP(S) requests.
+requests
+
+# Needed for LakeFS uploads.
+git+https://github.com/helxplatform/avalon.git@v1.0.2
+

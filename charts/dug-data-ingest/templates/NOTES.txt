@@ -1,0 +1,2 @@
+1. This chart creates a CronJob that should regularly run Jobs to ingest data.
+2. You might need to adjust the PVC storage space, CPU or memory requirements for this job to complete.
