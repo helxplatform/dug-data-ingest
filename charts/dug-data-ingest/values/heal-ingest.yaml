@@ -1,0 +1,7 @@
+# Values file for HEAL ingest
+
+nameOverride: dug-data-ingest-heal
+dataStorage: 200Mi
+jobExecutor:
+  script: heal/ingest.sh
+  lakeFSRepository: heal-mds-import

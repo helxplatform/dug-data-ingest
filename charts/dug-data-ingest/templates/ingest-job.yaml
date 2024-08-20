@@ -38,6 +38,8 @@ spec:
                   value: {{ $lakeFS.username }}
                 - name: LAKEFS_PASSWORD
                   value: {{ $lakeFS.password }}
+                - name: LAKEFS_REPOSITORY
+                  value: {{ .Values.jobExecutor.lakeFSRepository }}
                 - name: LAKEFS_TEMPPATH
                   value: /data/lakefs
               resources:
