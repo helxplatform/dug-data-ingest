@@ -1,3 +1,6 @@
+# Don't include the /data directory, so we can use that to test things out.
+/data
+
 # Don't includes any values-secret.yaml file.
 values-secret.yaml
 
