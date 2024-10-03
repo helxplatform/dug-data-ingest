@@ -50,7 +50,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     if not result.ok:
         raise RuntimeError(f'Could not retrieve data dictionary list: {result}')
     datadict_ids = result.json()
-    logging.debug(f"Downloaded {len(datadict_ids)} data dictionaries.")
+    logging.info(f"Downloaded {len(datadict_ids)} data dictionaries.")
 
     # Download "studies" (everything that isn't a data dictionary). To do this, we download every metadata ID
     # (which we store in metadata_ids) and filter out the data dictionary identifiers we've seen before.
@@ -84,8 +84,8 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
         studies[study_id] = result_json
 
         # Record studies that have data dictionaries.
-        if 'data_dictionaries' in result_json:
-            dicts = result_json['data_dictionaries'].items()
+        if "variable_level_metadata" in result_json and "data_dictionaries" in result_json["variable_level_metadata"]:
+            dicts = result_json['variable_level_metadata']['data_dictionaries'].items()
             for (key, dd_id) in dicts:
                 logging.info(f"Found data dictionary {key} in study {study_id}: {dd_id}")
                 studies_to_dds[study_id].append({
@@ -124,8 +124,45 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
             else:
                 data_dict_ids_within_studies.add(dd_id)
                 result_json = result.json()
+
                 result_json['@id'] = dd_id
                 result_json['label'] = dd_label
+
+                # Sometimes 'data_dictionary' is a list of fields, and sometimes it is a dictionary with a 'fields' field.
+                # We standardize so that the top-level 'fields' field is always a list of fields.
+                if "data_dictionary" in result_json and isinstance(result_json["data_dictionary"], list):
+                    result_json["fields"] = result_json["data_dictionary"]
+                elif (
+                    "data_dictionary" in result_json
+                    and isinstance(result_json["data_dictionary"], dict)
+                    and "fields" in result_json["data_dictionary"]
+                ):
+                    result_json["fields"] = list(
+                        map(
+                            lambda x: {"name": x["property"], "title": x["description"]},
+                            result_json["data_dictionary"]["fields"],
+                        )
+                    )
+                elif (
+                    "data_dictionary" in result_json
+                    and isinstance(result_json["data_dictionary"], dict)
+                    and "data_dictionary" in result_json["data_dictionary"]
+                ):
+                    result_json["fields"] = list(
+                        map(
+                            lambda x: {"name": x["name"], "title": x.get("description", "NA")},
+                            result_json["data_dictionary"]["data_dictionary"],
+                        )
+                    )
+                    if (not dd_label or dd_label == "NA") and "title" in result_json[
+                        "data_dictionary"
+                    ]:
+                        result_json["label"] = result_json["data_dictionary"]["title"]
+                else:
+                    logging.warning(
+                        f"Could not determine fields for data dictionary {dd_id}: {result_json}"
+                    )
+                    result_json["fields"] = []
 
             study_json['data_dictionaries'].append(result_json)
 
@@ -197,7 +234,6 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         # (This is not currently used, but the idea is that you could call this function on
         # the data_dict directory instead of the studies_with_data_dicts directory and generate
         # dbGaP XML files for all of them instead.
-        data_dicts = []
         if 'data_dictionaries' in json_data:
             data_dicts = json_data['data_dictionaries']
             study = json_data
@@ -252,19 +288,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 else:
                     logging.warning(f"No date_added found in data dictionary file {file_path}")
 
-            if isinstance(data_dict, list):
-                top_level_dict = {}
-                second_tier_dicts = data_dict
-            elif isinstance(data_dict, dict) and 'data_dictionary' in data_dict:
-                top_level_dict = data_dict
-                second_tier_dicts = data_dict['data_dictionary']
-                if 'fields' in second_tier_dicts:
-                    second_tier_dicts = second_tier_dicts['fields']
-            else:
-                raise RuntimeError(
-                    f"Could not read {file_path}: list of data dictionaries not as expected: {data_dict}")
-
-            for var_dict in second_tier_dicts:
+            for var_dict in data_dict['fields']:
                 logging.debug(f"Generating dbGaP for variable {var_dict} in {file_path}")
 
                 # Retrieve the variable name.
