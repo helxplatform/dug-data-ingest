@@ -20,7 +20,7 @@ lakeFS:
 jobExecutor:
   image:
     repository: containers.renci.org/helxplatform/dug-data-ingest
-    tag: add-heal-platform-mds
+    tag: latest
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 0
