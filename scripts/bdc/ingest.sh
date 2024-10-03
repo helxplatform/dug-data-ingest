@@ -43,19 +43,19 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
 touch /data/bdc/test.txt
-rclone sync "/data/bdc/BioLINCC/" "lakefs:$LAKEFS_REPOSITORY/main/BioLINCC/" $RCLONE_FLAGS
-rclone sync "/data/bdc/COVID19/" "lakefs:$LAKEFS_REPOSITORY/main/COVID19/" $RCLONE_FLAGS
-rclone sync "/data/bdc/DIR/" "lakefs:$LAKEFS_REPOSITORY/main/DIR/" $RCLONE_FLAGS
-rclone sync "/data/bdc/imaging/" "lakefs:$LAKEFS_REPOSITORY/main/imaging/" $RCLONE_FLAGS
-rclone sync "/data/bdc/LungMAP/" "lakefs:$LAKEFS_REPOSITORY/main/LungMAP/" $RCLONE_FLAGS
-rclone sync "/data/bdc/NSRR/" "lakefs:$LAKEFS_REPOSITORY/main/NSRR/" $RCLONE_FLAGS
-rclone sync "/data/bdc/parent/" "lakefs:$LAKEFS_REPOSITORY/main/parent/" $RCLONE_FLAGS
-rclone sync "/data/bdc/PCGC/" "lakefs:$LAKEFS_REPOSITORY/main/PCGC/" $RCLONE_FLAGS
-rclone sync "/data/bdc/RECOVER/" "lakefs:$LAKEFS_REPOSITORY/main/RECOVER/" $RCLONE_FLAGS
-rclone sync "/data/bdc/topmed/" "lakefs:$LAKEFS_REPOSITORY/main/topmed/" $RCLONE_FLAGS
+rclone sync "/data/bdc/BioLINCC/" "lakefs:biolincc/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/COVID19/" "lakefs:covid19-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/DIR/" "lakefs:dir-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/imaging/" "lakefs:imaging/main/" $RCLONE_FLAGS # TODO: repo not present
+rclone sync "/data/bdc/LungMAP/" "lakefs:lungmap-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/NSRR/" "lakefs:nsrr-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/parent/" "lakefs:parent-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/PCGC/" "lakefs:pcgc-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/RECOVER/" "lakefs:recover-dbgap/main/" $RCLONE_FLAGS
+rclone sync "/data/bdc/topmed/" "lakefs:topmed-gen3-dbgap/main/" $RCLONE_FLAGS
 
 # Save logs into repository as well.
-rclone sync "/data/logs" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
+rclone sync "/data/logs" "lakefs:bdc-gen3-import/main/logs/" $RCLONE_FLAGS # TODO: repo not present
 
 # Step 4. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
