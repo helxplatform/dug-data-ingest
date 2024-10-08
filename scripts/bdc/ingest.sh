@@ -54,7 +54,7 @@ sync_dir_to_lakefs() {
   local subdir=$4
 
   # Sync the local directory to the remote directory.
-  rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" "$RCLONE_FLAGS"
+  rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" $RCLONE_FLAGS
 
   # Commit the sync.
   curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
