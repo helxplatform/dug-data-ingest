@@ -10,3 +10,16 @@ When installing Helm charts from this directory, make sure you include the follo
 - One of the files from `values/` for the specific ingest you want.
 
 You should install multiple CronJobs using this template for each data ingest you want to support.
+
+## Using this Helm chart
+
+This Helm chart creates a [CronJob](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/)
+in a Kubernetes cluster set up for either BDC or HEAL ingest. To install this Helm chart, set up Helm and
+then run:
+
+```shell
+$ helm install -n translator-exp -f values/bdc-ingest.yaml -f values-secret.yaml dug-data-ingest-bdc
+```
+
+This will create a CronJob named `dug-data-ingest-bdc` that creates pods named
+`dug-data-ingest-bdc-[alphanumeric code]` on the specified schedule.
