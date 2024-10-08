@@ -18,7 +18,7 @@ in a Kubernetes cluster set up for either BDC or HEAL ingest. To install this He
 then run:
 
 ```shell
-$ helm install -n bdc-dev -f values/bdc-ingest.yaml -f values-secret.yaml dug-data-ingest-bdc
+$ helm install -n bdc-dev -f values/bdc-ingest.yaml -f values-secret.yaml dug-data-ingest-bdc .
 ```
 
 (If upgrading to a new version of this chart, replace `install` with `upgrade`).
