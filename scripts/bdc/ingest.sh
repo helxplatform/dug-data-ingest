@@ -42,25 +42,40 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 
-touch /data/bdc/test.txt
-rclone sync "/data/bdc/BioLINCC/" "lakefs:biolincc/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/COVID19/" "lakefs:covid19-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/DIR/" "lakefs:dir-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/imaging/" "lakefs:imaging/main/" $RCLONE_FLAGS # TODO: repo not present
-rclone sync "/data/bdc/LungMAP/" "lakefs:lungmap-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/NSRR/" "lakefs:nsrr-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/parent/" "lakefs:parent-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/PCGC/" "lakefs:pcgc-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/RECOVER/" "lakefs:recover-dbgap/main/" $RCLONE_FLAGS
-rclone sync "/data/bdc/topmed/" "lakefs:topmed-gen3-dbgap/main/" $RCLONE_FLAGS
+# Combined code for:
+# - Copying a local directory to a LakeFS repository.
+# - Commiting that repository.
+# It takes three arguments:
+#   sync_dir_to_lakefs(local_dir, repo_name, branch_name, subdir)
+sync_dir_to_lakefs() {
+  local local_dir=$1
+  local repo_name=$2
+  local branch_name=$3
+  local subdir=$4
+
+  # Sync the local directory to the remote directory.
+  rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" "$RCLONE_FLAGS"
+
+  # Commit the sync.
+  curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
+    -H "Content-Type: application/json" \
+    -d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
+}
+
+# Actually sync all the directories.
+sync_dir_to_lakefs "/data/bdc/BioLINCC/" "biolincc" "main" ""
+sync_dir_to_lakefs "/data/bdc/COVID19/" "covid19-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/DIR/" "dir-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/imaging/" "imaging" "main" ""
+sync_dir_to_lakefs "/data/bdc/LungMAP/" "lungmap-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/NSRR/" "nsrr-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/parent/" "parent-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/PCGC/" "pcgc-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/RECOVER/" "recover-dbgap" "main" ""
+sync_dir_to_lakefs "/data/bdc/topmed/" "topmed-gen3-dbgap" "main" ""
 
 # Save logs into repository as well.
-rclone sync "/data/logs" "lakefs:bdc-gen3-import/main/logs/" $RCLONE_FLAGS # TODO: repo not present
-
-# Step 4. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
-curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
+sync_dir_to_lakefs "/data/logs" "bdc-roger" "main" "ingest-logs"
 
 # Report completion.
 echo Downloads complete at `date`.
