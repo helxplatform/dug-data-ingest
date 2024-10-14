@@ -20,7 +20,7 @@ lakeFS:
 jobExecutor:
   image:
     repository: containers.renci.org/helxplatform/dug-data-ingest
-    tag: fix-bdc-repos
+    tag: latest
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 0
