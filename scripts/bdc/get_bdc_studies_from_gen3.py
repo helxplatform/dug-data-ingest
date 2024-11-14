@@ -94,6 +94,17 @@ def retrieve_bdc_study_info(bdc_gen3_base_url, study_id):
 
     return study_info_response.json()
 
+def retrieve_dbgap_info(fhir_id):
+    """Fetch dbgap study info from API
+    """
+    dbgap_url = (f'https://dbgap-api.ncbi.nlm.nih.gov/'
+                 f'fhir/x1/ResearchStudy?_id={fhir_id}')
+    dbgap_response = requests.get(dbgap_url, timeout=60)
+    if not dbgap_response.ok:
+        raise RuntimeError(f"Could not download dbgap information "
+                           f"about fhir id {fhir_id} at URL {dbgap_url}")
+    return dbgap_response.json()
+
 def retrieve_study_info_list(bdc_gen3_base_url):
     """Download study_info for all studies in BDC Gen3"""
     # Step 1. Download all the discovery_metadata from the BDC Gen3 Metadata
@@ -135,6 +146,21 @@ def get_study_name(gen3_discovery):
     else:
         study_name = '(no name)'
     return (study_name, notes,)
+
+def get_study_design(dbgap_info):
+    """Extract the study design from a nest of variables with care"""
+    try:
+        return dbgap_info['entry'][0]['resource']['category'][0]['text']
+    except (KeyError, IndexError):
+        return ""
+
+def get_program(gen3_discovery, default=""):
+    """Extract the program string from the tags, if present."""
+    tags = gen3_discovery.get('tags', None)
+    if tags:
+        return tags[0].get('name')
+    else:
+        return default
 
 def make_csv_dict_from_study_info(study_info):
     "Take the response from Gen3 and build the necessary CSV dict"
@@ -226,14 +252,24 @@ def make_kgx_node_from_study_info(study_info):
     if not 'gen3_discovery' in study_info:
         return None
     gen3_discovery = study_info['gen3_discovery']
+    # dbgap_info = retrieve_dbgap_info(study_info['DBGAP_FHIR_Id'])['entry'][0]
     node = {
-        "name": get_study_name(gen3_discovery),
         "id": gen3_discovery["study_id"],
+        "studyTitle": get_study_name(gen3_discovery),
         "categories": [
             "biolink:Study"
         ],
         "description" : gen3_discovery.get("study_description", ""),
-        "link": gen3_discovery.get("dbgap_url", ""),
+        "url": gen3_discovery.get("dbgap_url", ""),
+        "abstract": gen3_discovery.get("doi_descriptions", ""),
+        "program": get_program(gen3_discovery),
+        "authz": gen3_discovery.get("authz", ""),
+        "DbGaPConsent": gen3_discovery.get("dbgap_consent_text", ""),
+        "studyDesign": gen3_discovery.get("DBGAP_FHIR_Category", ""),
+        "numSubjects": gen3_discovery.get("_subjects_count", ""),
+        "studyCitation": gen3_discovery.get("doi_citation", ""),
+        "publications": gen3_discovery.get("DBGAP_FHIR_Citers", {}),
+        "releaseDate": gen3_discovery.get("DBGAP_FHIR_ReleaseDate", ""),
     }
     return node
 
@@ -245,7 +281,7 @@ def make_kgx_node_from_study_info(study_info):
               type=str,
               metavar='URL',
               default='https://gen3.biodatacatalyst.nhlbi.nih.gov/')
-@click.option('--kgx_file', type=click.File('w'), default=None,
+@click.option('--kgx-file', type=click.File('w'), default=None,
               required=False, help="Optional KGX output file")
 def get_bdc_studies_from_gen3(output, bdc_gen3_base_url, kgx_file):
     """
