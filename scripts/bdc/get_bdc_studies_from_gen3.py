@@ -129,23 +129,33 @@ def retrieve_study_info_list(bdc_gen3_base_url):
             outlist.append(study_info)
     return outlist
 
+def format_name_notes(name='', short_name=''):
+    """Format a notes string for the study name"""
+    if name:
+        return f"Name: {name}, short name: {short_name}.\n"
+    elif short_name:
+        return f"Short name: {short_name}.\n"
+    return ''
+
 def get_study_name(gen3_discovery):
     """Extract the study name and notes field from the gen3 metadata"""
     # We prefer full_name to name, which is often identical to the short name.
     notes = ''
     study_name = ''
+    name = ''
+    short_name = ''
     if 'full_name' in gen3_discovery:
         study_name = gen3_discovery['full_name']
-        notes += (f"Name: {gen3_discovery.get('name', '')}, "
-                  f"short name: {gen3_discovery.get('short_name', '')}.\n")
+        name = gen3_discovery.get('name', '')
+        short_name = gen3_discovery.get('short_name', '')
     elif 'name' in gen3_discovery:
         study_name = gen3_discovery['name']
-        notes += f"Short name: {gen3_discovery.get('short_name', '')}.\n"
+        short_name = gen3_discovery.get('short_name', '')
     elif 'short_name' in gen3_discovery:
         study_name = gen3_discovery['short_name']
     else:
         study_name = '(no name)'
-    return (study_name, notes,)
+    return (study_name, name, short_name,)
 
 def get_study_design(dbgap_info):
     """Extract the study design from a nest of variables with care"""
@@ -174,24 +184,26 @@ def make_csv_dict_from_study_info(study_info):
     # current date.
     last_modified = str(datetime.now().date())
 
-    if 'gen3_discovery' in study_info:
-        gen3_discovery = study_info['gen3_discovery']
-        study_id = gen3_discovery['study_id']
+    if not 'gen3_discovery' in study_info:
+        return {}
+    gen3_discovery = study_info['gen3_discovery']
+    study_id = gen3_discovery['study_id']
 
-        (study_name, notes) = get_study_name(gen3_discovery)
+    (study_name, name, short_name) = get_study_name(gen3_discovery)
+    notes = format_name_notes(name, short_name)
 
-        # Program name.
-        if 'authz' in gen3_discovery:
-            # authz is in the format
-            # /programs/topmed/projects/ECLIPSE_DS-COPD-MDS-RD
-            match = re.fullmatch(r'^/programs/(.*)/projects/(.*)$',
-                                 gen3_discovery['authz'])
-            if match:
-                program_names.append(match.group(1))
-                # study_short_name = match.group(2)
+    # Program name.
+    if 'authz' in gen3_discovery:
+        # authz is in the format
+        # /programs/topmed/projects/ECLIPSE_DS-COPD-MDS-RD
+        match = re.fullmatch(r'^/programs/(.*)/projects/(.*)$',
+                             gen3_discovery['authz'])
+        if match:
+            program_names.append(match.group(1))
+            # study_short_name = match.group(2)
 
-        # Description.
-        description = gen3_discovery.get('study_description', '')
+    # Description.
+    description = gen3_discovery.get('study_description', '')
 
     # Extract accession and consent.
     m = re.match(r'^(phs.*?)(?:\.(c\d+))?$', study_id)
@@ -247,31 +259,92 @@ def make_kgx(nodes, edges):
 
     return kgx
 
-def make_kgx_node_from_study_info(study_info):
+def make_study_kgx_node(gen3_discovery, study_id):
     """Generate a kgx-style node dict from the Gen3 study info JSON"""
-    if not 'gen3_discovery' in study_info:
-        return None
-    gen3_discovery = study_info['gen3_discovery']
     # dbgap_info = retrieve_dbgap_info(study_info['DBGAP_FHIR_Id'])['entry'][0]
+    (study_name, name, short_name) = get_study_name(gen3_discovery)
     node = {
-        "id": gen3_discovery["study_id"],
-        "studyTitle": get_study_name(gen3_discovery),
+        "id": study_id,
+        "name": name or study_name,
+        "full_name": study_name,
+        "short_study_name": short_name,
         "categories": [
             "biolink:Study"
         ],
         "description" : gen3_discovery.get("study_description", ""),
-        "url": gen3_discovery.get("dbgap_url", ""),
+        "iri": gen3_discovery.get("dbgap_url", ""),
         "abstract": gen3_discovery.get("doi_descriptions", ""),
         "program": get_program(gen3_discovery),
-        "authz": gen3_discovery.get("authz", ""),
-        "DbGaPConsent": gen3_discovery.get("dbgap_consent_text", ""),
-        "studyDesign": gen3_discovery.get("DBGAP_FHIR_Category", ""),
-        "numSubjects": gen3_discovery.get("_subjects_count", ""),
-        "studyCitation": gen3_discovery.get("doi_citation", ""),
-        "publications": gen3_discovery.get("DBGAP_FHIR_Citers", {}),
-        "releaseDate": gen3_discovery.get("DBGAP_FHIR_ReleaseDate", ""),
+        "study_design": gen3_discovery.get("DBGAP_FHIR_Category", ""),
+        # "publications": gen3_discovery.get("DBGAP_FHIR_Citers", {}),
+        "release_date": gen3_discovery.get("DBGAP_FHIR_ReleaseDate", ""),
     }
     return node
+
+def get_id_and_consent(study_id):
+    """Use a regex to find the participant set ID and consent from the study ID
+
+    IF it doesn't match the standard dbgap-style ID, return an empty string for
+    consent.
+    """
+    m = re.search(r'^(?P<base_id>phs\d+\.v\d+\.p\d+)\.(?P<consent_id>c\d+)$',
+                  study_id)
+    if m:
+        return m.groups()
+    else:
+        return (study_id, '')
+
+def make_consent_info_dict(gen3_discovery):
+    """Build a structure for the relevant consent and return it as a dict.
+    """
+    consent_info = {
+        "id": gen3_discovery["study_id"],
+        "iri": gen3_discovery.get("doi_url", ""),
+        "name": gen3_discovery.get("project_id", ""),
+        "categories": [
+            "biolink:StudyPopulation",
+        ],
+        "authz": gen3_discovery.get("authz", ""),
+        "num_subjects": gen3_discovery.get("_subjects_count", ""),
+        "study_citation": gen3_discovery.get("doi_citation", ""),
+        "consent_text": gen3_discovery.get("dbgap_consent_text", ""),
+    }
+    return consent_info
+
+def make_edge_link(study_id, consent_id):
+    """Build a structure for the edge between study and consent
+    """
+    edge_info = {
+        "subject": study_id,
+        "predicate": "biolink:related_to",
+        "object": consent_id,
+    }
+    return edge_info
+
+def make_kgx_lists(study_info_list):
+    """Take studies from gen3 and build a list of nodes
+
+    This will consolidate studies which only differ in consent IDs into a single
+    node and will populate the 'consents' field with their details.
+    """
+    study_dict = {}
+    consent_list = []
+    edge_list = []
+
+    for study_info in study_info_list:
+        if not 'gen3_discovery' in study_info:
+            continue
+        gen3_discovery = study_info['gen3_discovery']
+        (study_id, consent) = get_id_and_consent(gen3_discovery['study_id'])
+        if not consent:
+            # Non-dbgap IDs not supported by Dug
+            continue
+        if not study_id in study_dict:
+            study_dict[study_id] = make_study_kgx_node(
+                gen3_discovery, study_id)
+        consent_list.append(make_consent_info_dict(gen3_discovery))
+        edge_list.append(make_edge_link(study_id, gen3_discovery['study_id']))
+    return (list(study_dict.values()) + consent_list, edge_list)
 
 # Set up command line arguments.
 @click.command()
@@ -302,9 +375,10 @@ def get_bdc_studies_from_gen3(output, bdc_gen3_base_url, kgx_file):
 
 
     if kgx_file:
-        nodes = [make_kgx_node_from_study_info(study_info)
-                 for study_info in study_info_list]
-        json.dump(make_kgx(nodes, []), kgx_file, indent=2)
+        (nodes, edges) = make_kgx_lists(study_info_list)
+        logging.info("Writing out %d kgx nodes to file %s", len(nodes),
+                      kgx_file)
+        json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
 
 # def _depricated_code():
 #     """This code previously came after the csv_writer.writerow column but
