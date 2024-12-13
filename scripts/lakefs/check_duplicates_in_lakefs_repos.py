@@ -103,6 +103,7 @@ def check_duplicates_in_lakefs_repos(repositories):
             check_object_for_duplicates(lakefs, study_id_dict, obj)
 
     # Generate an overall report.
+    print()
     count_duplicate_study_ids = 0
     for study_id in sorted(study_id_dict.keys()):
         if len(study_id_dict[study_id]['filepaths']) > 1:
@@ -112,6 +113,7 @@ def check_duplicates_in_lakefs_repos(repositories):
             for filepath in sorted(study_id_dict[study_id]['filepaths'].keys()):
                 print(f" - {filepath}")
 
+    print()
     logging.info(f"Found {count_duplicate_study_ids} duplicate study IDs.")
 
 if __name__ == "__main__":
