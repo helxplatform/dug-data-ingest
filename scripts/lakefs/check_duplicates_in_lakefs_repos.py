@@ -17,8 +17,12 @@
 # them into ingest scripts to generate before-and-after reports or something.
 #
 # See ticket at https://renci.atlassian.net/browse/DUG-374
+import os
 
 import click
+
+import logging
+logging.basicConfig(level=logging.INFO)
 
 @click.command()
 @click.option(
@@ -36,6 +40,14 @@ def check_duplicates_in_lakefs_repos(repositories):
 
     :param repositories: One or more LakeFS repositories to check for duplicates.
     """
+
+    # Prepare LakeFS authentication information.
+    lakefs_host = os.environ.get("LAKEFS_HOST")
+    lakefs_username = os.environ.get("LAKEFS_USERNAME")
+    lakefs_password = os.environ.get("LAKEFS_PASSWORD")
+    lakefs_branch = os.environ.get("LAKEFS_BRANCH", default="main")
+
+    # Check each repository to be checked.
     for repository in repositories:
         print(repository)
 
