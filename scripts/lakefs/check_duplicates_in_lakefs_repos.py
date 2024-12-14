@@ -23,30 +23,52 @@
 #
 # See ticket at https://renci.atlassian.net/browse/DUG-374
 import json
-import os
 import sys
 import xml.etree.ElementTree
+from collections import defaultdict
 import logging
-
-from pydantic.utils import defaultdict
-
-logging.basicConfig(level=logging.INFO)
 
 import click
 from lakefs_spec import LakeFSFileSystem
 
-# Configuration options
+# Set up logging.
+logging.basicConfig(level=logging.INFO)
+
+# Configuration options.
+# For now, we have a default LakeFS branch we use everywhere, but eventually we might want to configure this.
 DEFAULT_LAKEFS_BRANCH = 'main'
 
 
 def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
+    """
+    Checks a dbGaP XML file for duplicate study IDs and updates the study ID dictionary.
+
+    This function reads an XML file opened using LakeFS, parses its structure to retrieve
+    the study ID, and checks whether that study ID is already present in a tracking dictionary.
+    If the study ID exists, the number of occurrences of the file in the dictionary is updated;
+    otherwise, the study ID is added to the dictionary with the respective file path and count.
+
+    :param lakefs: Object used to open the XML file from a LakeFS repository.
+    :type lakefs: Any
+    :param study_id_dict: A dictionary tracking processed study IDs and their associated file paths.
+    :type study_id_dict: dict
+    :param filepath: Path to the XML file being checked for duplicate study IDs.
+    :type filepath: str
+    :return: None
+    """
     logging.debug(f"Checking file {filepath} for duplicate IDs.")
+
+    # Use the LakeFS library to open the file path.
     with lakefs.open(filepath, "rt") as f:
         doc = xml.etree.ElementTree.parse(f)
         data_table = doc.getroot()
+
+        # For now we only check for duplicated study IDs; in the future we could check for variables as well if that
+        # is useful.
         study_id = data_table.attrib['study_id']
 
         if study_id in study_id_dict:
+            # We log this as an error, but primarily we set it in the shared dictionary study_id_dict.
             logging.error(f"Duplicate study ID {study_id} found in {filepath} (previously found in {sorted(study_id_dict[study_id]['filepaths'].keys())}.")
             if filepath not in study_id_dict[study_id]['filepaths']:
                 study_id_dict[study_id]['filepaths'][filepath] = 0
@@ -59,14 +81,30 @@ def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
 
 
 def check_object_for_duplicates(lakefs, study_id_dict, obj):
+    """
+    Check an object for duplicates based on its type.
+
+    This function processes objects which may be files or directories. If the object is a file and ends
+    with `.xml`, it calls check_dbgap_xml_file_for_duplicates() to check it. If the object is a directory,
+    it recursively explores its contents.
+
+    Unknown types result in a runtime error. Logging is used to provide debug information about skipped
+    files.
+
+    :param lakefs: The lakeFS client instance used for file operations.
+    :param study_id_dict: A dictionary containing study IDs to check against for duplicates.
+    :param obj: A dictionary representing the object metadata, including type and name.
+    :return: None
+    """
     match obj['type']:
         case 'object':
             # An object is a file. But is it a dbGaP XML file?
             obj_name = obj['name']
             if not obj_name.lower().endswith(".xml"):
+                # Doesn't look like a dbGaP XML file.
                 logging.debug(f"Skipping file {obj_name} as it doesn't end with `.xml`.")
             else:
-                # It looks like an XML file: check it for duplicates.
+                # It looks like a dbGaP XML file: check it for duplicates.
                 check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, obj_name)
         case 'directory':
             # Recurse into this directory.
@@ -88,9 +126,18 @@ def check_object_for_duplicates(lakefs, study_id_dict, obj):
 )
 def check_duplicates_in_lakefs_repos(repositories):
     """
-    Report on duplicates among a set of LakeFS repositories.
+    Detects duplicate study IDs in specified LakeFS repositories and generates a report
+    identifying the duplicates. The function connects to the LakeFS server, iterates
+    through the objects in each repository, and checks for duplicate study IDs based
+    on filepaths.
 
-    :param repositories: One or more LakeFS repositories to check for duplicates.
+    :param repositories: One or more LakeFS repositories to be checked for duplicates. Each
+        repository can optionally specify a branch name using the `repo/branch_name`
+        format. If no branch is specified, the default branch will be used.
+    :type repositories: tuple[str]
+    :return: None
+    :raises SystemExit: Exits with code 0 if no duplicates are found, otherwise exits with
+        the number of duplicate study IDs found.
     """
 
     # Log into LakeFS server.
@@ -107,7 +154,7 @@ def check_duplicates_in_lakefs_repos(repositories):
         for obj in lakefs.ls(repo_and_branch_name, detail=True):
             check_object_for_duplicates(lakefs, study_id_dict, obj)
 
-    # Generate an overall report.
+    # Generate an overall report in JSON.
     duplicates = defaultdict(list)
     count_duplicate_study_ids = 0
     for study_id in sorted(study_id_dict.keys()):
@@ -117,10 +164,12 @@ def check_duplicates_in_lakefs_repos(repositories):
             duplicates[study_id] = sorted(study_id_dict[study_id]['filepaths'].keys())
     json.dump(duplicates, sys.stdout, indent=2, sort_keys=True)
 
+    # Provide a final duplicate count.
     logging.info(f"Found {count_duplicate_study_ids} duplicate study IDs.")
 
-    # Will be zero if there are no duplicates, and non-zero if there are duplicates.
+    # Exit with an exit code, which will be zero if there are no duplicates, and the number of duplicates if there are some.
     sys.exit(count_duplicate_study_ids)
+
 
 if __name__ == "__main__":
     check_duplicates_in_lakefs_repos()
