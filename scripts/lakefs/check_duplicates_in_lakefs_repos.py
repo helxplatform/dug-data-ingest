@@ -23,8 +23,13 @@
 #
 # See ticket at https://renci.atlassian.net/browse/DUG-374
 import json
+import os
+import sys
 import xml.etree.ElementTree
 import logging
+
+from pydantic.utils import defaultdict
+
 logging.basicConfig(level=logging.INFO)
 
 import click
@@ -103,18 +108,19 @@ def check_duplicates_in_lakefs_repos(repositories):
             check_object_for_duplicates(lakefs, study_id_dict, obj)
 
     # Generate an overall report.
-    print()
+    duplicates = defaultdict(list)
     count_duplicate_study_ids = 0
     for study_id in sorted(study_id_dict.keys()):
         if len(study_id_dict[study_id]['filepaths']) > 1:
             # Duplicate filepaths!
             count_duplicate_study_ids += 1
-            print(f"Study {study_id}:")
-            for filepath in sorted(study_id_dict[study_id]['filepaths'].keys()):
-                print(f" - {filepath}")
+            duplicates[study_id] = sorted(study_id_dict[study_id]['filepaths'].keys())
+    json.dump(duplicates, sys.stdout, indent=2, sort_keys=True)
 
-    print()
     logging.info(f"Found {count_duplicate_study_ids} duplicate study IDs.")
+
+    # Will be zero if there are no duplicates, and non-zero if there are duplicates.
+    sys.exit(count_duplicate_study_ids)
 
 if __name__ == "__main__":
     check_duplicates_in_lakefs_repos()
