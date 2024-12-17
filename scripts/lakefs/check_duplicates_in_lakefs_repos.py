@@ -132,8 +132,8 @@ def check_duplicates_in_lakefs_repos(repositories):
     on filepaths.
 
     :param repositories: One or more LakeFS repositories to be checked for duplicates. Each
-        repository can optionally specify a branch name using the `repo/branch_name`
-        format. If no branch is specified, the default branch will be used.
+        repository can optionally specify a branch name using the `repo:branch_name`
+        format. If no branch is specified, the default branch (`main`) will be used.
     :type repositories: tuple[str]
     :return: None
     :raises SystemExit: Exits with code 0 if no duplicates are found, otherwise exits with
@@ -145,13 +145,17 @@ def check_duplicates_in_lakefs_repos(repositories):
 
     # Check each repository to be checked.
     study_id_dict = dict()
-    for repository in repositories:
-        logging.info(f"Checking repository {repository} for duplicates.")
-        if "/" not in repository:
-            repo_and_branch_name = f"{repository}/{DEFAULT_LAKEFS_BRANCH}/"
+    for repository_reference in repositories:
+        # Handle repositories with branch names (generally represented as e.g. `heal-studies:v2.0`).
+        if ':' in repository_reference:
+            repository, branch_name = repository_reference.split(':', 2)
         else:
-            repo_and_branch_name = f"{repository}/"
-        for obj in lakefs.ls(repo_and_branch_name, detail=True):
+            repository = repository_reference
+            branch_name = DEFAULT_LAKEFS_BRANCH
+
+        # Check repository for duplicates.
+        logging.info(f"Checking repository {repository} at branch {branch_name} for duplicates.")
+        for obj in lakefs.ls(f"lakefs://{repository}/{branch_name}/", detail=True):
             check_object_for_duplicates(lakefs, study_id_dict, obj)
 
     # Generate an overall report in JSON.
