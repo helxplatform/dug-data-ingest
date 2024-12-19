@@ -39,7 +39,7 @@ export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
 
 # We would normally put each project into its own LakeFS repository, configurable in
 # this file, but for testing I'm going to put them all into the same repository.
-LAKEFS_REPOSITORY="bacon-dug-ingest-test"
+LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
 RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
