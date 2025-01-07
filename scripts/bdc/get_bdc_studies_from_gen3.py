@@ -3,10 +3,11 @@
 (using it as a source of truth).
 
 USAGE:
-  python bin/get_bdc_studies_from_gen3.py output.csv
+  python bin/get_bdc_studies_from_gen3.py output.csv --kgx-file output.json
 The BDC Gen3 instance is hosted at https://gen3.biodatacatalyst.nhlbi.nih.gov/
 """
 
+import os
 import csv
 import json
 import logging
@@ -21,7 +22,8 @@ import requests
 # Configuration
 # The number of items to download at a single go. This is usually capped by the
 # Gen3 instance, so you need to make sure that this limit is lower than theirs!
-GEN3_DOWNLOAD_LIMIT = 50
+GEN3_DOWNLOAD_LIMIT = os.environ.get('GEN3_DOWNLOAD_LIMIT', 50)
+GEN3_DOWNLOAD_TIMEOUT = os.environ.get('GEN3_DOWNLOAD_TIMEOUT', 60)
 
 # Turn on logging
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +55,7 @@ def download_gen3_list(input_url, download_limit=GEN3_DOWNLOAD_LIMIT):
     while True:
         url = input_url + f"&limit={download_limit}&offset={offset}"
         logging.debug(f"Requesting GET {url} from Gen3")
-        partial_list_response = requests.get(url, timeout=60)
+        partial_list_response = requests.get(url, timeout=GEN3_DOWNLOAD_TIMEOUT)
         if not partial_list_response.ok:
             raise RuntimeError(
                 f"Could not download discovery_metadata from BDC Gen3 {url}: " +
@@ -87,7 +89,7 @@ def retrieve_bdc_study_info(bdc_gen3_base_url, study_id):
     """
     # Download study information.
     url = urllib.parse.urljoin(bdc_gen3_base_url, f'/mds/metadata/{study_id}')
-    study_info_response = requests.get(url, timeout=60)
+    study_info_response = requests.get(url, timeout=GEN3_DOWNLOAD_TIMEOUT)
     if not study_info_response.ok:
         raise RuntimeError(f"Could not download study information "
                            f"about study {study_id} at URL {url}.")
@@ -99,7 +101,7 @@ def retrieve_dbgap_info(fhir_id):
     """
     dbgap_url = (f'https://dbgap-api.ncbi.nlm.nih.gov/'
                  f'fhir/x1/ResearchStudy?_id={fhir_id}')
-    dbgap_response = requests.get(dbgap_url, timeout=60)
+    dbgap_response = requests.get(dbgap_url, timeout=GEN3_DOWNLOAD_TIMEOUT)
     if not dbgap_response.ok:
         raise RuntimeError(f"Could not download dbgap information "
                            f"about fhir id {fhir_id} at URL {dbgap_url}")
@@ -162,6 +164,9 @@ def get_study_design(dbgap_info):
     try:
         return dbgap_info['entry'][0]['resource']['category'][0]['text']
     except (KeyError, IndexError):
+        logging.warning(
+            "Could not find study design text in dbgap info in entry "
+            "text: %s", dbgap_info['entry'])
         return ""
 
 def get_program(gen3_discovery, default=""):
@@ -379,191 +384,6 @@ def get_bdc_studies_from_gen3(output, bdc_gen3_base_url, kgx_file):
         logging.info("Writing out %d kgx nodes to file %s", len(nodes),
                       kgx_file)
         json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
-
-# def _depricated_code():
-#     """This code previously came after the csv_writer.writerow column but
-#     also came after an exit(0) statement that made it unreachable. It has been
-#     wrapped in a function definition to help code organization.
-
-#     Possibly consider just deleting this whole block?
-#     """
-#     assert (file_format == 'CSV',
-#             'HEAL VLMD CSV is the only currently supported input format.')
-
-#     with open(click.format_filename(input_file), 'r') as input:
-#         # dbGaP files are represented in XML as `data_table`s. We start by
-#         # creating one.
-#         data_table = ETree.Element('data_table')
-
-#         # Write out the study_id.
-#         if not study_id:
-#             # If no study ID is provided, use the input filename.
-#             # TODO: once we support JSON, we can use either root['title'] or
-#             # root['description'] here.
-#             study_id = os.path.basename(input_file)
-#         else:
-#             # Assume it is an HDP identifier, so add the HDP_ID_PREFIX.
-#             study_id = HDP_ID_PREFIX + study_id
-#         data_table.set('study_id', study_id)
-
-#         # Add the APPL ID.
-#         if appl_id:
-#             data_table.set('appl_id', appl_id)
-
-#         # Add the study title.
-#         # Note: not a dbGaP XML field! We make this up for communication.
-#         if study_name:
-#             data_table.set('study_name', study_name)
-
-#         # Record the creation date as this moment.
-#         data_table.set('date_created', datetime.now().isoformat())
-
-#         # Read input file and convert variables into
-#         if file_format == 'CSV':
-#             reader = csv.DictReader(input)
-
-#             # Some counts that are currently useful.
-#             counters = defaultdict(int)
-
-#             unique_variable_ids = set()
-#             for index, row in enumerate(reader):
-#                 counters['row'] += 1
-#                 row_index = index + 1  # Convert from zero-based index to one-based index.
-
-#                 variable = ETree.SubElement(data_table, 'variable')
-
-#                 # Variable name
-#                 var_name = row.get('name')
-#                 if not var_name:
-#                     logging.error(f"No variable name found in row on line {index + 1}, skipping.")
-#                     counters['no_varname'] += 1
-#                     continue
-#                 counters['has_varname'] += 1
-#                 # Make sure the variable ID is unique (by adding `_1`, `_2`, ... to the end of it).
-#                 variable_index = 0
-#                 while var_name in unique_variable_ids:
-#                     variable_index += 1
-#                     var_name = row['name'] + '_' + variable_index
-#                 variable.set('id', var_name)
-#                 if var_name != row['name']:
-#                     logging.warning(f"Duplicate variable ID detected for {row['name']}, so replaced it with "
-#                                     f"{var_name} -- note that the name element is unchanged.")
-#                 name = ETree.SubElement(variable, 'name')
-#                 name.text = var_name
-
-#                 # Variable title
-#                 # NOTE: this is not yet supported by Dug!
-#                 if row.get('title'):
-#                     title = ETree.SubElement(variable, 'title')
-#                     title.text = row['title']
-#                     counters['has_title'] += 1
-#                 else:
-#                     counters['no_title'] += 1
-
-#                 # Variable description
-#                 if row.get('description'):
-#                     desc = ETree.SubElement(variable, 'description')
-#                     desc.text = row['description']
-#                     counters['has_description'] += 1
-#                 else:
-#                     counters['no_description'] += 1
-
-#                 # Module (questionnaire/subsection name) Export the `module` field so that we can look for
-#                 # instruments.
-#                 #
-#                 # TODO: this is a custom field. Instead of this, we could export each data dictionary as a separate
-#                 # dbGaP file. Need to check to see what works better for Dug ingest.
-#                 if row.get('module'):
-#                     variable.set('module', row['module'])
-#                     if 'module_counts' not in counters:
-#                         counters['module_counts'] = defaultdict(int)
-#                     counters['module_counts'][row['module']] += 1
-#                 else:
-#                     counters['no_module'] += 1
-
-#                 # Constraints
-
-#                 # Minium and maximum values
-#                 if row.get('constraints.maximum'):
-#                     logical_max = ETree.SubElement(variable, 'logical_max')
-#                     logical_max.text = str(row['constraints.maximum'])
-#                 if row.get('constraints.minimum'):
-#                     logical_min = ETree.SubElement(variable, 'logical_min')
-#                     logical_min.text = str(row['constraints.minimum'])
-
-#                 # Maximum length ('constraints.maxLength') is not supported in dbGaP XML, so we ignore it.
-
-#                 # We ignore 'constraints.pattern' and 'format' for now, but we can try to include them in the
-#                 # description later if that is useful.
-#                 if row.get('constraints.pattern'):
-#                     counters['constraints.pattern'] += 1
-#                     logging.warning(f"`constraints.pattern` of {row['constraints.pattern']} found in row {row_index}, skipped.")
-#                 if row.get('format'):
-#                     counters['format'] += 1
-#                     logging.warning(f"Found `format` of {row['format']} found in row {row_index}, skipped.")
-
-#                 # Process enumerated and encoded values.
-#                 encs = {}
-#                 if row.get('encodings'):
-#                     counters['encodings'] += 1
-
-#                     for encoding in re.split("\\s*\\|\\s*", row['encodings']):
-#                         m = re.fullmatch("^\\s*(.*?)\\s*=\\s*(.*)\\s*$", encoding)
-#                         if not m:
-#                             raise RuntimeError(
-#                                 f"Could not parse encodings {row['encodings']} on row {row_index}")
-#                         key = m.group(1)
-#                         value = m.group(2)
-
-#                         if key in encs:
-#                             raise RuntimeError(
-#                                 f"Duplicate key detected in encodings {row['encodings']} on row {row_index}")
-#                         encs[key] = value
-
-#                 for key, value in encs.items():
-#                     value_element = ETree.SubElement(variable, 'value')
-#                     value_element.set('code', key)
-#                     value_element.text = value
-
-#                 # Double-check encodings with constraints.enum
-#                 if row.get('constraints.enum'):
-#                     enums = re.split("\\s*\\|\\s*", row['constraints.enum'])
-#                     if set(enums) != set(encs.keys()):
-#                         logging.error(f"`constraints.enum` ({row['constraints.enum']}) and `encodings` ({row['encodings']}) do not match.")
-#                         counters['enum_encoding_mismatch'] += 1
-
-#                 # Variable type.
-#                 typ = row.get('type')
-#                 if encs:
-#                     typ = 'encoded value'
-#                 if typ:
-#                     type_element = ETree.SubElement(variable, 'type')
-#                     type_element.text = typ
-
-#                 # We currently ignore metadata fields not usually filled in for input VLMD files:
-#                 # ordered, missingValues, trueValues, falseValues, repo_link
-
-#                 # We currently ignore all standardMappings: standardsMappings.type, standardsMappings.label,
-#                 # standardsMappings.url, standardsMappings.source, standardsMappings.id
-#                 # We currently ignore all relatedConcepts: relatedConcepts.type, relatedConcepts.label,
-#                 # relatedConcepts.url, relatedConcepts.source, relatedConcepts.id
-
-#                 # We currently ignore all univarStats vars: univarStats.median, univarStats.mean, univarStats.std,
-#                 # univarStats.min, univarStats.max, univarStats.mode, univarStats.count,
-#                 # univarStats.twentyFifthPercentile, univarStats.seventyFifthPercentile,
-#                 # univarStats.categoricalMarginals.name, univarStats.categoricalMarginals.count
-#         else:
-#             # This shouldn't be needed, since Click should catch any file format not in the accepted list.
-#             raise RuntimeError(f"Unsupported file format {file_format}")
-
-#         # Write out dbGaP XML.
-#         xml_str = ETree.tostring(data_table, encoding='unicode')
-#         pretty_xml_str = minidom.parseString(xml_str).toprettyxml()
-#         print(pretty_xml_str, file=output)
-
-#         # Display counters.
-#         logging.info(f"Counters: {json.dumps(counters, sort_keys=True, indent=2)}")
-
 
 # Run get_bdc_studies_from_gen3() if not used as a library.
 if __name__ == "__main__":
