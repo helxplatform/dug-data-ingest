@@ -7,19 +7,24 @@ set -euo pipefail
 START_DATE=$(date)
 echo "Started ingest from BDC at ${START_DATE}."
 
+DATAROOT="${1:-/data}"
+
 # Step 1. Prepare directory.
 echo Cleaning /data directory
-rm -rf /data/*
+rm -rf $DATAROOT/*
 
 echo Create log directory.
-mkdir -p /data/logs
+mkdir -p $DATAROOT/logs
+
+echo Create bdc ouptut directory.
+mkdir -p $DATAROOT/bdc
 
 # Step 1. Download the list of dbGaP IDs from BDC.
-python bdc/get_bdc_studies_from_gen3.py /data/bdc_dbgap_ids.csv 2>&1 | tee /data/logs/get_bdc_studies_from_gen3.txt
+python bdc/get_bdc_studies_from_gen3.py $DATAROOT/bdc_dbgap_ids.csv --kgx-file $DATAROOT/bdc/bdc_studies_kgx.json 2>&1 | tee $DATAROOT/logs/get_bdc_studies_from_gen3.txt
 
 # Step 2. Download the dbGaP XML files from BDC.
-mkdir -p /data/bdc
-python bdc/get_dbgap_data_dicts.py /data/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir /data/bdc --group-by Program 2>&1 | tee /data/logs/get_dbgap_data_dicts.txt
+mkdir -p $DATAROOT/bdc
+python bdc/get_dbgap_data_dicts.py $DATAROOT/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir $DATAROOT/bdc --group-by Program 2>&1 | tee $DATAROOT/logs/get_dbgap_data_dicts.txt
 
 # Step 3. Upload the dbGaP XML files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -63,16 +68,17 @@ sync_dir_to_lakefs() {
 }
 
 # Actually sync all the directories.
-sync_dir_to_lakefs "/data/bdc/BioLINCC/" "biolincc" "main" ""
-sync_dir_to_lakefs "/data/bdc/COVID19/" "covid19-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/DIR/" "dir-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/imaging/" "imaging" "main" ""
-sync_dir_to_lakefs "/data/bdc/LungMAP/" "lungmap-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/NSRR/" "nsrr-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/parent/" "parent-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/PCGC/" "pcgc-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/RECOVER/" "recover-dbgap" "main" ""
-sync_dir_to_lakefs "/data/bdc/topmed/" "topmed-gen3-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/BioLINCC/" "biolincc" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/COVID19/" "covid19-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/DIR/" "dir-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/imaging/" "imaging" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/LungMAP/" "lungmap-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/NSRR/" "nsrr-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/parent/" "parent-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/PCGC/" "pcgc-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/RECOVER/" "recover-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/topmed/" "topmed-gen3-dbgap" "main" ""
+sync_dir_to_lakefs "$DATAROOT/bdc/bdc_studies_kgx.json" "bdc-studies-kgx" "main" ""
 
 # Save logs into repository as well.
 sync_dir_to_lakefs "/data/logs" "bdc-roger" "main" "ingest-logs"
