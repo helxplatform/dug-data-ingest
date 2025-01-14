@@ -28,9 +28,11 @@ logging.basicConfig(level=logging.INFO)
 
 def translate_data_dictionary_field(field):
     """
+    Translate a data dictionary field into the internal format needed by generate_dbgap_files().
 
-    :param field:
-    :return:
+    :param field: A dictionary representing a single field from the Platform MDS.
+    :return: A dictionary representing a single field from the Platform MDS in a standard format.
+    :raise ValueError: if we can't figure out the information in the input field.
     """
 
     result = {}
@@ -40,7 +42,7 @@ def translate_data_dictionary_field(field):
     elif 'property' in field:
         result['name'] = field['property']
     else:
-        raise RuntimeError(f"Unable to translate field {field}: missing name or property")
+        raise ValueError(f"Unable to translate field {field}: missing name or property")
 
     if 'title' in field:
         result['title'] = field['title']
@@ -148,7 +150,11 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
                 logging.warning(
                     f"Study {study_id} refers to data dictionary {dd_id}, but no such data dictionary was found in "
                     f"the MDS.")
-                result_json = {'error': result.json()}
+                result_json = {
+                    '@id': dd_id,
+                    'error': result.json(),
+                    'fields': [],
+                }
             elif not result.ok:
                 raise RuntimeError(f'Could not retrieve data dictionary {dd_id}: {result}')
             else:
@@ -160,37 +166,43 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
 
                 # Sometimes 'data_dictionary' is a list of fields, and sometimes it is a dictionary with a 'fields' field.
                 # We standardize so that the top-level 'fields' field is always a list of fields.
-                if "data_dictionary" in result_json and isinstance(result_json["data_dictionary"], list):
-                    result_json["fields"] = result_json["data_dictionary"]
-                elif (
-                    "data_dictionary" in result_json
-                    and isinstance(result_json["data_dictionary"], dict)
-                    and "fields" in result_json["data_dictionary"]
-                ):
-                    result_json["fields"] = list(
-                        map(
-                            translate_data_dictionary_field,
-                            result_json["data_dictionary"]["fields"],
+                try:
+                    if "data_dictionary" in result_json and isinstance(result_json["data_dictionary"], list):
+                        result_json["fields"] = result_json["data_dictionary"]
+                    elif (
+                        "data_dictionary" in result_json
+                        and isinstance(result_json["data_dictionary"], dict)
+                        and "fields" in result_json["data_dictionary"]
+                    ):
+                        result_json["fields"] = list(
+                            map(
+                                translate_data_dictionary_field,
+                                result_json["data_dictionary"]["fields"],
+                            )
                         )
-                    )
-                elif (
-                    "data_dictionary" in result_json
-                    and isinstance(result_json["data_dictionary"], dict)
-                    and "data_dictionary" in result_json["data_dictionary"]
-                ):
-                    result_json["fields"] = list(
-                        map(
-                            translate_data_dictionary_field,
-                            result_json["data_dictionary"]["data_dictionary"],
+                    elif (
+                        "data_dictionary" in result_json
+                        and isinstance(result_json["data_dictionary"], dict)
+                        and "data_dictionary" in result_json["data_dictionary"]
+                    ):
+                        result_json["fields"] = list(
+                            map(
+                                translate_data_dictionary_field,
+                                result_json["data_dictionary"]["data_dictionary"],
+                            )
                         )
-                    )
-                    if (not dd_label or dd_label == "NA") and "title" in result_json[
-                        "data_dictionary"
-                    ]:
-                        result_json["label"] = result_json["data_dictionary"]["title"]
-                else:
-                    logging.warning(
-                        f"Could not determine fields for data dictionary {dd_id}: {result_json}"
+                        if (not dd_label or dd_label == "NA") and "title" in result_json[
+                            "data_dictionary"
+                        ]:
+                            result_json["label"] = result_json["data_dictionary"]["title"]
+                    else:
+                        logging.error(
+                            f"Could not determine fields for data dictionary {dd_id}, skipping: {result_json}"
+                        )
+                        result_json["fields"] = []
+                except ValueError as ve:
+                    logging.error(
+                        f"Could not determine fields for data dictionary {dd_id}, skipping: {ve}"
                     )
                     result_json["fields"] = []
 
@@ -318,7 +330,12 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 else:
                     logging.warning(f"No date_added found in data dictionary file {file_path}")
 
-            for var_dict in data_dict['fields']:
+            # Check for data_dict['error']
+            if 'error' in data_dict:
+                logging.warning(f"Could not retrieve data dictionary {data_dict['@id']} from MDS: {data_dict['error']['detail']}")
+                continue
+
+            for var_dict in data_dict.get('fields', []):
                 logging.debug(f"Generating dbGaP for variable {var_dict} in {file_path}")
 
                 # Retrieve the variable name.
