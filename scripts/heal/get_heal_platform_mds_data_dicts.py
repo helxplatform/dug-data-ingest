@@ -26,6 +26,36 @@ HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 logging.basicConfig(level=logging.INFO)
 
 
+def translate_data_dictionary_field(field):
+    """
+
+    :param field:
+    :return:
+    """
+
+    result = {}
+
+    if 'name' in field:
+        result['name'] = field['name']
+    elif 'property' in field:
+        result['name'] = field['property']
+    else:
+        raise RuntimeError(f"Unable to translate field {field}: missing name or property")
+
+    if 'title' in field:
+        result['title'] = field['title']
+
+    if 'description' in field:
+        result['description']  = field['description']
+
+    if 'section' in field:
+        result['module'] = field['section']
+    elif 'node' in field:
+        result['module'] = field['node']
+
+    return result
+
+
 def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, mds_metadata_endpoint, mds_limit):
     """
     Download all the studies and data dictionaries from the Platform MDS.
@@ -104,14 +134,14 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     # download separately from the MDS.
     data_dict_ids_within_studies = set()
     for count, study_id in enumerate(studies_to_dds.keys()):
-        logging.debug(f"Adding data dictionaries to study {study_id} ({count + 1}/{len(studies_to_dds)})")
-
         study_json = studies[study_id]
         study_json['data_dictionaries'] = []
 
         for dd in studies_to_dds[study_id]:
             dd_id = dd['id']
             dd_label = dd['label']
+
+            logging.info(f"Adding data dictionary to study {study_id} ({count + 1}/{len(studies_to_dds)}): {dd_id} ({dd_label})")
 
             result = requests.get(mds_metadata_endpoint + '/' + dd_id)
             if result.status_code == 404:
@@ -139,7 +169,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
                 ):
                     result_json["fields"] = list(
                         map(
-                            lambda x: {"name": x["property"], "title": x["description"]},
+                            translate_data_dictionary_field,
                             result_json["data_dictionary"]["fields"],
                         )
                     )
@@ -150,7 +180,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
                 ):
                     result_json["fields"] = list(
                         map(
-                            lambda x: {"name": x["name"], "title": x.get("description", "NA")},
+                            translate_data_dictionary_field,
                             result_json["data_dictionary"]["data_dictionary"],
                         )
                     )
@@ -263,7 +293,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                     logging.warning(f"No identifier found in data dictionary file {file_path}")
                 study_name =  study.get('gen3_discovery', {}).get('label') or study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_name')
                 if study_name:
-                    data_table.set('study_name', study_name)                
+                    data_table.set('study_name', study_name)
                 study_description = study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_description')
                 if study_description:
                     data_table.set('study_description', study_description)
@@ -295,7 +325,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 variable = ET.SubElement(data_table, 'variable')
 
                 # Make sure the variable ID is unique (by adding `_1`, `_2`, ... to the end of it).
-                name_or_node = var_dict.get('name', var_dict.get('node', ''))
+                name_or_node = var_dict.get('name', var_dict.get('property', ''))
                 var_name = name_or_node
                 variable_index = 0
                 while var_name in unique_variable_ids:
@@ -309,6 +339,11 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 # Create a name element for the variable. We don't uniquify this field.
                 name = ET.SubElement(variable, 'name')
                 name.text = var_name
+
+                # Create a title element for the variable.
+                if 'title' in var_dict:
+                    title = ET.SubElement(variable, 'title')
+                    title.text = var_dict['title']
 
                 if 'description' in var_dict:
                     desc = ET.SubElement(variable, 'description')
