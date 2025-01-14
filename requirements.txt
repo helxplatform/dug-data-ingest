@@ -4,6 +4,5 @@ click
 # Needed for HTTP(S) requests.
 requests
 
-# Needed for LakeFS uploads.
-git+https://github.com/helxplatform/avalon.git@v1.0.2
-
+# Needed to access LakeFS as a filesystem.
+lakefs-spec~=0.11.1
