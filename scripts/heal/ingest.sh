@@ -3,18 +3,22 @@
 # Bash strict mode (minus IFS change, since we're not using arrays).
 set -euo pipefail
 
+# CONFIGURATION
+# The data directory that we download data to.
+DATA_DIR=/data
+
 # A script for ingesting data from HEAL Platform dbGaP XML files into LakeFS.
 START_DATE=$(date)
 echo Started ingest from HEAL Platform at ${START_DATE}.
 
 # Step 1. Prepare directories.
 echo Cleaning data directory
-rm -rf data/*
+rm -rf $DATA_DIR/*
 
-mkdir -p data/logs
+mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python get_heal_platform_mds_data_dicts.py data/heal 2>&1 | tee data/logs/get_heal_platform_mds_data_dicts.log
+python get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
 
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -32,10 +36,10 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # Sync (https://rclone.org/commands/rclone_sync/)
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
-rclone sync "data/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
 
 # Step 4. Upload logs with RClone.
-rclone sync "data/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
