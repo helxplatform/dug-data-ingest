@@ -5,3 +5,5 @@ dataStorage: 200Mi
 jobExecutor:
   script: heal/ingest.sh
   lakeFSRepository: heal-mds-import
+  image:
+    tag: fix-heal-bugs
