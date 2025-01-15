@@ -6,6 +6,7 @@ set -euo pipefail
 # CONFIGURATION
 # The data directory that we download data to.
 DATA_DIR=/data
+SCRIPT_DIR=heal
 
 # A script for ingesting data from HEAL Platform dbGaP XML files into LakeFS.
 START_DATE=$(date)
@@ -18,7 +19,7 @@ rm -rf $DATA_DIR/*
 mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
+python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
 
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
