@@ -257,7 +257,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
     dbgap_files_generated = set()
 
     # Create a complete variable index for every variable we find.
-    variable_index = []
+    all_variable_index = []
 
     data_dict_files = os.listdir(studies_with_data_dicts_dir)
     for data_dict_file in data_dict_files:
@@ -443,7 +443,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
                     variable_entry['encodings'] = "||".join(map(lambda x: f"{x[0]}={x[1]}", encs.items()))
 
-                variable_index.append(variable_entry)
+                all_variable_index.append(variable_entry)
 
             logging.info(f"Added {variable_count} variables in data dictionary {data_dict['@id']} in {file_path} for study {study_name}.")
 
@@ -466,10 +466,10 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings']
 
         csv_writer = csv.DictWriter(f, fieldnames=header)
-        for row in variable_index:
+        for row in all_variable_index:
             csv_writer.writerow(row)
 
-    logging.info(f"Wrote variable index of {len(variable_index)} variables to {variable_index_filename}.")
+    logging.info(f"Wrote variable index of {len(all_variable_index)} variables to {variable_index_filename}.")
 
     return dbgap_files_generated
 
