@@ -285,50 +285,58 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         else:
             raise RuntimeError(f"Could not read {file_path}: unknown format.")
 
-        # Begin writing a dbGaP file for each data dictionary.
+        # Prepare data table to write out.
+        data_table = ET.Element('data_table')
+
+        if 'gen3_discovery' not in study:
+            logging.error(f"No gen3_discovery field found in data dictionary file {file_path}, skipping.")
+            continue
+
+        # Every data dictionary from the HEAL Data Platform should have an ID, and the previous code should have
+        # stored it in the `@id` field in the data dictionary JSON file.
+        #
+        # There may also be a `label`, which is the key of the data dictionary in the study.
+        if '@id' in study['gen3_discovery']:
+            data_table.set('id', study['gen3_discovery']['@id'])
+        else:
+            logging.warning(f"No identifier found in data dictionary file {file_path}")
+        study_name =  study.get('gen3_discovery', {}).get('label') or study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_name')
+        if study_name:
+            data_table.set('study_name', study_name)
+        study_description = study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_description')
+        if study_description:
+            data_table.set('study_description', study_description)
+
+        # Determine the data_table study_id from the internal HEAL Data Platform (HDP) identifier.
+        if '_hdp_uid' in study['gen3_discovery']:
+            data_table.set('study_id', HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid'])
+        else:
+            logging.warning(f"No HDP ID found in data dictionary file {file_path}")
+
+        # Create a non-standard appl_id field just in case we need it later.
+        # This should be fine for now, but there is also a `comments` element that we can
+        # store information like this in if we need to.
+        if 'appl_id' in study['gen3_discovery']:
+            data_table.set('appl_id', study['gen3_discovery']['appl_id'])
+        else:
+            logging.warning(f"No APPL ID found in data dictionary file {file_path}")
+
+        # Determine the data_table date_created
+        if 'date_added' in study['gen3_discovery']:
+            data_table.set('date_created', study['gen3_discovery']['date_added'])
+        else:
+            logging.warning(f"No date_added found in data dictionary file {file_path}")
+
+        # A list of unique variable identifiers in this data dictionary file.
+        # If you need to make sure every variable from MDS is uniquely identified, you can move this set to the
+        # top-level of this file.
+        unique_variable_ids = set()
+
+        total_variable_count = 0
+        count_data_dictionaries = 0
         for data_dict in data_dicts:
-            # A list of unique variable identifiers in this data dictionary file.
-            # If you need to make sure every variable from MDS is uniquely identified, you can move this set to the
-            # top-level of this file.
-            unique_variable_ids = set()
-
-            data_table = ET.Element('data_table')
-
-            if 'gen3_discovery' in study:
-                # Every data dictionary from the HEAL Data Platform should have an ID, and the previous code should have
-                # stored it in the `@id` field in the data dictionary JSON file.
-                #
-                # There may also be a `label`, which is the key of the data dictionary in the study.
-                if '@id' in study['gen3_discovery']:
-                    data_table.set('id', study['gen3_discovery']['@id'])
-                else:
-                    logging.warning(f"No identifier found in data dictionary file {file_path}")
-                study_name =  study.get('gen3_discovery', {}).get('label') or study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_name')
-                if study_name:
-                    data_table.set('study_name', study_name)
-                study_description = study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_description')
-                if study_description:
-                    data_table.set('study_description', study_description)
-
-                # Determine the data_table study_id from the internal HEAL Data Platform (HDP) identifier.
-                if '_hdp_uid' in study['gen3_discovery']:
-                    data_table.set('study_id', HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid'])
-                else:
-                    logging.warning(f"No HDP ID found in data dictionary file {file_path}")
-
-                # Create a non-standard appl_id field just in case we need it later.
-                # This should be fine for now, but there is also a `comments` element that we can
-                # store information like this in if we need to.
-                if 'appl_id' in study['gen3_discovery']:
-                    data_table.set('appl_id', study['gen3_discovery']['appl_id'])
-                else:
-                    logging.warning(f"No APPL ID found in data dictionary file {file_path}")
-
-                # Determine the data_table date_created
-                if 'date_added' in study['gen3_discovery']:
-                    data_table.set('date_created', study['gen3_discovery']['date_added'])
-                else:
-                    logging.warning(f"No date_added found in data dictionary file {file_path}")
+            count_data_dictionaries += 1
+            variable_count = 0
 
             # Check for data_dict['error']
             if 'error' in data_dict:
@@ -336,10 +344,16 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 continue
 
             for var_dict in data_dict.get('fields', []):
+                total_variable_count += 1
+                variable_count += 1
+
                 logging.debug(f"Generating dbGaP for variable {var_dict} in {file_path}")
 
                 # Retrieve the variable name.
                 variable = ET.SubElement(data_table, 'variable')
+
+                # Let's create a dd_id field for each variable, even if nobody supports it yet.
+                variable.set('dd_id', data_dict['@id'])
 
                 # Make sure the variable ID is unique (by adding `_1`, `_2`, ... to the end of it).
                 name_or_node = var_dict.get('name', var_dict.get('property', ''))
@@ -410,18 +424,20 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         value_element.set('code', key)
                         value_element.text = value
 
-            # Write out XML.
-            xml_str = ET.tostring(data_table, encoding='unicode')
-            pretty_xml_str = minidom.parseString(xml_str).toprettyxml()
+            logging.info(f"Added {variable_count} variables in data dictionary {data_dict['@id']} in {file_path} to {output_xml_filename}.")
 
-            # Produce the XML file by changing the .json to .xml.
-            output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
-            with open(output_xml_filename, 'w') as f:
-                f.write(pretty_xml_str)
-            logging.info(f"Writing {data_table} to {output_xml_filename}")
+        # Write out XML.
+        xml_str = ET.tostring(data_table, encoding='unicode')
+        pretty_xml_str = minidom.parseString(xml_str).toprettyxml()
 
-            # Make a list of dbGaP files to report to the main program.
-            dbgap_files_generated.add(output_xml_filename)
+        # Produce the XML file by changing the .json to .xml.
+        output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
+        with open(output_xml_filename, 'w') as f:
+            f.write(pretty_xml_str)
+        logging.info(f"Wrote {data_table} (containing {total_variable_count} variables from {count_data_dictionaries} data dictionaries) to {output_xml_filename}")
+
+        # Make a list of dbGaP files to report to the main program.
+        dbgap_files_generated.add(output_xml_filename)
 
     return dbgap_files_generated
 
