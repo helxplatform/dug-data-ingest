@@ -466,6 +466,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
 
         csv_writer = csv.DictWriter(f, fieldnames=header)
+        csv_writer.writeheader()
         for row in all_variable_index:
             csv_writer.writerow(row)
 
