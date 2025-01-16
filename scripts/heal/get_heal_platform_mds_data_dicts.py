@@ -463,7 +463,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
     # Write a full variable index to the output XML filename directory.
     variable_index_filename = os.path.join(dbgap_dir, 'variable_index.csv')
     with open(variable_index_filename, 'w') as f:
-        header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings']
+        header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
 
         csv_writer = csv.DictWriter(f, fieldnames=header)
         for row in all_variable_index:
