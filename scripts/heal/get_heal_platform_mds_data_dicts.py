@@ -6,6 +6,7 @@
 #
 # If no MDS endpoint is specified, we default to the production endpoint at https://healdata.org/mds/metadata
 #
+import csv
 import json
 import os
 import re
@@ -255,6 +256,9 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
     dbgap_files_generated = set()
 
+    # Create a complete variable index for every variable we find.
+    variable_index = []
+
     data_dict_files = os.listdir(studies_with_data_dicts_dir)
     for data_dict_file in data_dict_files:
         file_path = os.path.join(studies_with_data_dicts_dir, data_dict_file)
@@ -298,6 +302,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         # There may also be a `label`, which is the key of the data dictionary in the study.
         if '@id' in study['gen3_discovery']:
             data_table.set('id', study['gen3_discovery']['@id'])
+            study_id = study['gen3_discovery']['@id']
         else:
             logging.warning(f"No identifier found in data dictionary file {file_path}")
         study_name =  study.get('gen3_discovery', {}).get('label') or study.get('gen3_discovery', {}).get('study_metadata',{}).get('minimal_info',{}).get('study_name')
@@ -347,6 +352,8 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 total_variable_count += 1
                 variable_count += 1
 
+                variable_entry = {}
+
                 logging.debug(f"Generating dbGaP for variable {var_dict} in {file_path}")
 
                 # Retrieve the variable name.
@@ -354,6 +361,8 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
                 # Let's create a dd_id field for each variable, even if nobody supports it yet.
                 variable.set('dd_id', data_dict['@id'])
+                variable_entry['study_id'] = data_table.get('study_id')
+                variable_entry['dd_id'] = data_dict['@id']
 
                 # Make sure the variable ID is unique (by adding `_1`, `_2`, ... to the end of it).
                 name_or_node = var_dict.get('name', var_dict.get('property', ''))
@@ -369,22 +378,27 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
                 # Create a name element for the variable. We don't uniquify this field.
                 name = ET.SubElement(variable, 'name')
-                name.text = var_name
+                name.text = name_or_node
+
+                variable_entry['name'] = name_or_node
 
                 # Create a title element for the variable.
                 if 'title' in var_dict:
                     title = ET.SubElement(variable, 'title')
                     title.text = var_dict['title']
+                    variable_entry['title'] = var_dict['title']
 
                 if 'description' in var_dict:
                     desc = ET.SubElement(variable, 'description')
                     desc.text = var_dict['description']
+                    variable_entry['description'] = var_dict['description']
 
                 # Export the `module` field so that we can look for instruments.
                 # TODO: this is a custom field. Instead of this, we could export each data dictionary as a separate dbGaP
                 # file. Need to check to see what works better for Dug ingest.
                 if 'module' in var_dict:
                     variable.set('module', var_dict['module'])
+                    variable_entry['module'] = var_dict['module']
 
                 # Add constraints.
                 if 'constraints' in var_dict:
@@ -392,9 +406,11 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                     if 'minimum' in var_dict['constraints']:
                         logical_min = ET.SubElement(variable, 'logical_min')
                         logical_min.text = str(var_dict['constraints']['minimum'])
+                        variable_entry['logical_min'] = str(var_dict['constraints']['minimum'])
                     if 'maximum' in var_dict['constraints']:
                         logical_max = ET.SubElement(variable, 'logical_max')
                         logical_max.text = str(var_dict['constraints']['maximum'])
+                        variable_entry['logical_max'] = str(var_dict['constraints']['maximum'])
 
                     # Determine a type for this variable.
                     typ = var_dict.get('type')
@@ -403,6 +419,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                     if typ:
                         type_element = ET.SubElement(variable, 'type')
                         type_element.text = typ
+                        variable_entry['type'] = typ
 
                 # If there are encodings, we need to convert them into values.
                 if 'encodings' in var_dict:
@@ -424,7 +441,11 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         value_element.set('code', key)
                         value_element.text = value
 
-            logging.info(f"Added {variable_count} variables in data dictionary {data_dict['@id']} in {file_path} to {output_xml_filename}.")
+                    variable_entry['encodings'] = "||".join(map(lambda x: f"{x[0]}={x[1]}", encs.items()))
+
+                variable_index.append(variable_entry)
+
+            logging.info(f"Added {variable_count} variables in data dictionary {data_dict['@id']} in {file_path} for study {study_name}.")
 
         # Write out XML.
         xml_str = ET.tostring(data_table, encoding='unicode')
@@ -438,6 +459,17 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
         # Make a list of dbGaP files to report to the main program.
         dbgap_files_generated.add(output_xml_filename)
+
+    # Write a full variable index to the output XML filename directory.
+    variable_index_filename = os.path.join(dbgap_dir, 'variable_index.csv')
+    with open(variable_index_filename, 'w') as f:
+        header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings']
+
+        csv_writer = csv.DictWriter(f, fieldnames=header)
+        for row in variable_index:
+            csv_writer.writerow(row)
+
+    logging.info(f"Wrote variable index of {len(variable_index)} variables to {variable_index_filename}.")
 
     return dbgap_files_generated
 
