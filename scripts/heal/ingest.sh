@@ -5,7 +5,9 @@ set -euo pipefail
 
 # CONFIGURATION
 # The data directory that we download data to.
-DATA_DIR=/data
+
+
+DATA_DIR="${1:-/data}"
 SCRIPT_DIR=heal
 
 # A script for ingesting data from HEAL Platform dbGaP XML files into LakeFS.
