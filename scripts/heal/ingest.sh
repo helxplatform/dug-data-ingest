@@ -21,7 +21,7 @@ rm -rf $DATA_DIR/*
 mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
+python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal --kgx-file $DATA_DIR/heal/heal_studies_kgx.json 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
 
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.

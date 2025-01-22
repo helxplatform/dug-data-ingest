@@ -474,17 +474,30 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
     return dbgap_files_generated
 
+def generate_kgx_from_studies_files(studies_dir, kgx_file):
+    """Read SLMD files from the studies_dir, write out kgx_file
+
+    Study level metadata kgx file generation uses the cached files in the
+    studies_dir from the previous step in order to generate the kgx output
+    file.
+    """
+
 
 # Set up command line arguments.
 @click.command()
 @click.argument('output', type=click.Path(exists=False), required=True)
-@click.option('--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
-              help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
-@click.option('--limit', default=MDS_DEFAULT_LIMIT, help='The maximum number of entries to retrieve from the Platform '
-                                                         'MDS. Note that some MDS instances have their own built-in '
-                                                         'limit; if you hit that limit, you will need to update the '
-                                                         'code to support offsets.')
-def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
+@click.option(
+    '--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
+    help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
+@click.option(
+    '--limit', default=MDS_DEFAULT_LIMIT,
+    help='The maximum number of entries to retrieve from the Platform '
+    'MDS. Note that some MDS instances have their own built-in '
+    'limit; if you hit that limit, you will need to update the '
+    'code to support offsets.')
+@click.option('--kgx-file', type=click.File('w'), default=None,
+              required=False, help="Optional KGX output file")
+def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit, kgx_file):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
     which at the moment is the dbGaP XML format (as described in https://ftp.ncbi.nlm.nih.gov/dbgap/dtd/).
@@ -506,7 +519,8 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
     # Don't allow the program to run if the output directory already exists.
     if os.path.exists(output):
         logging.error(
-            f"To ensure that existing data is not partially overwritten, the specified output directory ({output}) must not exist.")
+            f"To ensure that existing data is not partially overwritten, "
+            f"the specified output directory ({output}) must not exist.")
         exit(1)
 
     # Create the output directory.
@@ -527,7 +541,11 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
     os.makedirs(dbgap_dir, exist_ok=True)
 
     dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir)
-    logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
+    logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest "
+                 f"in {dbgap_dir}.")
+
+    if kgx_file:
+        generate_kgx_from_studies_files(studies_dir, kgx_file)
 
 
 # Run get_heal_platform_mds_data_dicts() if not used as a library.
