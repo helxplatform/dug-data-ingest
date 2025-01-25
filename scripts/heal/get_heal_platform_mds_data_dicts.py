@@ -52,9 +52,9 @@ def translate_data_dictionary_field(field):
         result['description']  = field['description']
 
     if 'section' in field:
-        result['module'] = field['section']
+        result['section'] = field['section']
     elif 'node' in field:
-        result['module'] = field['node']
+        result['section'] = field['node']
 
     return result
 
@@ -396,9 +396,9 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 # Export the `module` field so that we can look for instruments.
                 # TODO: this is a custom field. Instead of this, we could export each data dictionary as a separate dbGaP
                 # file. Need to check to see what works better for Dug ingest.
-                if 'module' in var_dict:
-                    variable.set('module', var_dict['module'])
-                    variable_entry['module'] = var_dict['module']
+                if 'section' in var_dict:
+                    variable.set('section', var_dict['section'])
+                    variable_entry['section'] = var_dict['section']
 
                 # Add constraints.
                 if 'constraints' in var_dict:
@@ -463,7 +463,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
     # Write a full variable index to the output XML filename directory.
     variable_index_filename = os.path.join(dbgap_dir, 'variable_index.csv')
     with open(variable_index_filename, 'w') as f:
-        header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
+        header = ['study_id', 'dd_id', 'name', 'section', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
 
         csv_writer = csv.DictWriter(f, fieldnames=header)
         csv_writer.writeheader()
