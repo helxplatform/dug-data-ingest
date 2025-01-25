@@ -21,6 +21,10 @@ mkdir -p $DATA_DIR/logs
 # Step 2. Download the list of dbGaP IDs from BDC.
 python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
 
+# Step 2.1. Copy the errors and warnings into a separate file.
+grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log > $DATA_DIR/logs/errors.log
+grep -i "WARNING" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log > $DATA_DIR/logs/warnings.log
+
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
 
