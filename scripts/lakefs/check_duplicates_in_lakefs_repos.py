@@ -39,7 +39,7 @@ logging.basicConfig(level=logging.INFO)
 DEFAULT_LAKEFS_BRANCH = 'main'
 
 
-def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
+def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath, repository):
     """
     Checks a dbGaP XML file for duplicate study IDs and updates the study ID dictionary.
 
@@ -70,17 +70,20 @@ def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
         if study_id in study_id_dict:
             # We log this as an error, but primarily we set it in the shared dictionary study_id_dict.
             logging.error(f"Duplicate study ID {study_id} found in {filepath} (previously found in {sorted(study_id_dict[study_id]['filepaths'].keys())}.")
+            if repository not in study_id_dict[study_id]['repositories']:
+                study_id_dict[study_id]['repositories'].append(repository)
             if filepath not in study_id_dict[study_id]['filepaths']:
                 study_id_dict[study_id]['filepaths'][filepath] = 0
             study_id_dict[study_id]['filepaths'][filepath] += 1
         else:
             logging.info(f"Found study ID {study_id} in {filepath}.")
             study_id_dict[study_id] = {
+                'repositories': [repository],
                 'filepaths': {filepath: 1},
             }
 
 
-def check_object_for_duplicates(lakefs, study_id_dict, obj):
+def check_object_for_duplicates(lakefs, study_id_dict, obj, repository):
     """
     Check an object for duplicates based on its type.
 
@@ -105,11 +108,11 @@ def check_object_for_duplicates(lakefs, study_id_dict, obj):
                 logging.debug(f"Skipping file {obj_name} as it doesn't end with `.xml`.")
             else:
                 # It looks like a dbGaP XML file: check it for duplicates.
-                check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, obj_name)
+                check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, obj_name, repository)
         case 'directory':
             # Recurse into this directory.
             for inner_obj in lakefs.ls(obj['name'], detail=True):
-                check_object_for_duplicates(lakefs, study_id_dict, inner_obj)
+                check_object_for_duplicates(lakefs, study_id_dict, inner_obj, repository)
         case _:
             raise RuntimeError(f"Unknown type {obj['type']} in object {json.dumps(obj)}")
 
@@ -124,7 +127,12 @@ def check_object_for_duplicates(lakefs, study_id_dict, obj):
     required=True,
     help="One or more LakeFS repositories to check for duplicates (use `repo/branch_name` to specify a branch name).",
 )
-def check_duplicates_in_lakefs_repos(repositories):
+@click.option(
+    "--relative-to",
+    metavar="REPO_NAME",
+    help="A repository to compare other outputs against."
+)
+def check_duplicates_in_lakefs_repos(repositories, relative_to=None):
     """
     Detects duplicate study IDs in specified LakeFS repositories and generates a report
     identifying the duplicates. The function connects to the LakeFS server, iterates
@@ -135,7 +143,7 @@ def check_duplicates_in_lakefs_repos(repositories):
     :param repositories: One or more LakeFS repositories to be checked for duplicates. Each
         repository can optionally specify a branch name using the `repo:branch_name`
         format. If no branch is specified, the default branch (`main`) will be used.
-    :type repositories: tuple[str]
+    :param relative_to: A repository to compare other outputs against.
     :return: None
     :raises SystemExit: Exits with code 0 if no duplicates are found, otherwise exits with
         the number of duplicate study IDs found.
@@ -143,6 +151,9 @@ def check_duplicates_in_lakefs_repos(repositories):
 
     # Log into LakeFS server.
     lakefs = LakeFSFileSystem()
+
+    if relative_to and relative_to not in repositories:
+        repositories += tuple([relative_to])
 
     # Check each repository to be checked.
     study_id_dict = dict()
@@ -157,20 +168,51 @@ def check_duplicates_in_lakefs_repos(repositories):
         # Check repository for duplicates.
         logging.info(f"Checking repository {repository} at branch {branch_name} for duplicates.")
         for obj in lakefs.ls(f"lakefs://{repository}/{branch_name}/", detail=True):
-            check_object_for_duplicates(lakefs, study_id_dict, obj)
+            check_object_for_duplicates(lakefs, study_id_dict, obj, repository)
 
     # Generate an overall report in JSON.
+    study_ids_by_repository = defaultdict(list)
     duplicates = defaultdict(list)
     count_duplicate_study_ids = 0
     for study_id in sorted(study_id_dict.keys()):
+        for repository in study_id_dict[study_id]['repositories']:
+            study_ids_by_repository[repository].append(study_id)
+
         if len(study_id_dict[study_id]['filepaths']) > 1:
             # Duplicate filepaths!
             count_duplicate_study_ids += 1
             duplicates[study_id] = sorted(study_id_dict[study_id]['filepaths'].keys())
+
     json.dump(duplicates, sys.stdout, indent=2, sort_keys=True)
 
     # Provide a final duplicate count.
     logging.info(f"Found {count_duplicate_study_ids} duplicate study IDs.")
+
+    # If relative_to is set, report on how other repositories do relative to the relative_to repository.
+    if relative_to:
+        study_ids_relative_to = dict()
+        for study_id in study_ids_by_repository[relative_to]:
+            study_ids_relative_to[study_id] = 0
+
+        study_ids_not_in_relative_to = defaultdict(int)
+
+        for repository in study_ids_by_repository:
+            if repository == relative_to:
+                continue
+
+            for study_id in study_ids_by_repository[repository]:
+                if study_id in study_ids_relative_to:
+                    study_ids_relative_to[study_id] += 1
+                else:
+                    study_ids_not_in_relative_to[study_id] += 1
+
+        logging.info(f"Relative to repository {relative_to}, these study IDs are ALSO present in other repositories:")
+        for study_id in sorted(study_ids_relative_to.keys()):
+            logging.info(f"- {study_id}: {study_ids_relative_to[study_id]}")
+
+        logging.info(f"These study IDs are present in other repositories but NOT in {relative_to}:")
+        for study_id in sorted(study_ids_not_in_relative_to.keys()):
+            logging.info(f"- {study_id}: {study_ids_not_in_relative_to[study_id]}")
 
     # Exit with an exit code, which will be zero if there are no duplicates, and the number of duplicates if there are some.
     sys.exit(count_duplicate_study_ids)
