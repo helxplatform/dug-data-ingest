@@ -130,6 +130,7 @@ def check_duplicates_in_lakefs_repos(repositories):
     identifying the duplicates. The function connects to the LakeFS server, iterates
     through the objects in each repository, and checks for duplicate study IDs based
     on filepaths.
+    \f
 
     :param repositories: One or more LakeFS repositories to be checked for duplicates. Each
         repository can optionally specify a branch name using the `repo:branch_name`
