@@ -422,6 +422,12 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         enum_labels = var_dict.get('enumLabels', {})
                         encodings = []
 
+                        # In some older data dictionaries, the enumLabels are stored in the `encodings` string.
+                        if 'encodings' in var_dict_constraints and len(enum_labels) == 0:
+                            for pair in var_dict_constraints['encodings'].split('|'):
+                                key, value = pair.split('=')
+                                enum_labels[key.strip()] = value.strip()
+
                         for key in enum_values:
                             value_element = ET.SubElement(variable, 'value')
                             value_element.set('code', key)
