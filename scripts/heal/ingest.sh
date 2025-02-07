@@ -5,12 +5,12 @@ set -euo pipefail
 
 # CONFIGURATION
 # The data directory that we download data to.
-DATA_DIR=/data
-SCRIPT_DIR=heal
+DATA_DIR=${HEAL_INGEST_DATA_DIR:-/data}
+SCRIPT_DIR=${HEAL_INGEST_SCRIPT_DIR:-heal}
 
 # A script for ingesting data from HEAL Platform dbGaP XML files into LakeFS.
 START_DATE=$(date)
-echo Started ingest from HEAL Platform at ${START_DATE}.
+echo Started ingest from HEAL Platform to ${DATA_DIR} at ${START_DATE}.
 
 # Step 1. Prepare directories.
 echo Cleaning data directory
