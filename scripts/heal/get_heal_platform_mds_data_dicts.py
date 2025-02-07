@@ -427,9 +427,8 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                             value_element.set('code', key)
                             try:
                                 value = enum_labels[key]
-                                encodings.append(f"{key}={enum_labels[key]}")
                             except KeyError:
-                                logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}, using {key} as value.")
+                                logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}, using '{key}' as value.")
                                 value = key
 
                             value_element.text = value
