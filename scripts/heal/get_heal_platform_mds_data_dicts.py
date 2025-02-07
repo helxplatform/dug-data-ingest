@@ -420,16 +420,23 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         typ = 'encoded value'
                         enum_values = var_dict_constraints['enum']
                         enum_labels = var_dict.get('enumLabels', {})
+                        encodings = []
 
                         for key in enum_values:
                             value_element = ET.SubElement(variable, 'value')
                             value_element.set('code', key)
                             try:
-                                value_element.text = enum_labels[key]
-                            except KeyError as e:
+                                value = enum_labels[key]
+                                encodings.append(f"{key}={enum_labels[key]}")
+                            except KeyError:
                                 logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}, using {key} as value.")
-                                value_element.text = key
-                                
+                                value = key
+
+                            value_element.text = value
+                            encodings.append(f"{key}={value}")
+
+                        variable_entry['encodings'] = "|".join(encodings)
+
                     if typ:
                         type_element = ET.SubElement(variable, 'type')
                         type_element.text = typ
