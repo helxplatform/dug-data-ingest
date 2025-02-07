@@ -402,21 +402,23 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
                 # Add constraints.
                 if 'constraints' in var_dict:
+                    var_dict_constraints = var_dict['constraints']
+                    
                     # Check for minimum and maximum constraints.
-                    if 'minimum' in var_dict['constraints']:
+                    if 'minimum' in var_dict_constraints:
                         logical_min = ET.SubElement(variable, 'logical_min')
-                        logical_min.text = str(var_dict['constraints']['minimum'])
-                        variable_entry['logical_min'] = str(var_dict['constraints']['minimum'])
-                    if 'maximum' in var_dict['constraints']:
+                        logical_min.text = str(var_dict_constraints['minimum'])
+                        variable_entry['logical_min'] = str(var_dict_constraints['minimum'])
+                    if 'maximum' in var_dict_constraints:
                         logical_max = ET.SubElement(variable, 'logical_max')
-                        logical_max.text = str(var_dict['constraints']['maximum'])
-                        variable_entry['logical_max'] = str(var_dict['constraints']['maximum'])
+                        logical_max.text = str(var_dict_constraints['maximum'])
+                        variable_entry['logical_max'] = str(var_dict_constraints['maximum'])
 
                     # Determine a type for this variable.
                     typ = var_dict.get('type')
-                    if 'enum' in var_dict['constraints'] and len(var_dict['constraints']['enum']) > 0:
+                    if 'enum' in var_dict_constraints and len(var_dict_constraints['enum']) > 0:
                         typ = 'encoded value'
-                        enum_values = var_dict['constraints']['enum']
+                        enum_values = var_dict_constraints['enum']
                         enum_labels = var_dict.get('enumLabels', {})
 
                         for key in enum_values:
