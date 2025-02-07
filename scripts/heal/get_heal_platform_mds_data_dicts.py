@@ -427,8 +427,9 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                             try:
                                 value_element.text = enum_labels[key]
                             except KeyError as e:
-                                logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}: {e}")
-
+                                logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}, using {key} as value.")
+                                value_element.text = key
+                                
                     if typ:
                         type_element = ET.SubElement(variable, 'type')
                         type_element.text = typ
