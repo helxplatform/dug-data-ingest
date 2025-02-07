@@ -413,35 +413,23 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         variable_entry['logical_max'] = str(var_dict['constraints']['maximum'])
 
                     # Determine a type for this variable.
+                    enum_values = []
+                    enum_labels = {}
                     typ = var_dict.get('type')
                     if 'enum' in var_dict['constraints'] and len(var_dict['constraints']['enum']) > 0:
                         typ = 'encoded value'
+                        enum_values = var_dict['constraints']['enum']
+                        enum_labels = var_dict.get('enumLabels', {})
+
+                        for key in enum_values:
+                            value_element = ET.SubElement(variable, 'value')
+                            value_element.set('code', key)
+                            value_element.text = enum_labels.get(key, '')
+
                     if typ:
                         type_element = ET.SubElement(variable, 'type')
                         type_element.text = typ
                         variable_entry['type'] = typ
-
-                # If there are encodings, we need to convert them into values.
-                if 'encodings' in var_dict:
-                    encs = {}
-                    for encoding in re.split("\\s*\\|\\s*", var_dict['encodings']):
-                        m = re.fullmatch("^\\s*(.*?)\\s*=\\s*(.*)\\s*$", encoding)
-                        if not m:
-                            raise RuntimeError(
-                                f"Could not parse encodings {var_dict['encodings']} in data dictionary file {file_path}")
-                        key = m.group(1)
-                        value = m.group(2)
-                        if key in encs:
-                            raise RuntimeError(
-                                f"Duplicate key detected in encodings {var_dict['encodings']} in data dictionary file {file_path}")
-                        encs[key] = value
-
-                    for key, value in encs.items():
-                        value_element = ET.SubElement(variable, 'value')
-                        value_element.set('code', key)
-                        value_element.text = value
-
-                    variable_entry['encodings'] = "||".join(map(lambda x: f"{x[0]}={x[1]}", encs.items()))
 
                 all_variable_index.append(variable_entry)
 
