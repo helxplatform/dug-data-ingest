@@ -413,8 +413,6 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                         variable_entry['logical_max'] = str(var_dict['constraints']['maximum'])
 
                     # Determine a type for this variable.
-                    enum_values = []
-                    enum_labels = {}
                     typ = var_dict.get('type')
                     if 'enum' in var_dict['constraints'] and len(var_dict['constraints']['enum']) > 0:
                         typ = 'encoded value'
