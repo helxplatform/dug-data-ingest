@@ -9,13 +9,14 @@
 import csv
 import json
 import os
-import re
 import click
 import logging
 import requests
 from collections import defaultdict
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+
+from bs4 import BeautifulSoup
 
 # Some defaults.
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
@@ -49,7 +50,7 @@ def translate_data_dictionary_field(field):
         result['title'] = field['title']
 
     if 'description' in field:
-        result['description']  = field['description']
+        result['description'] = field['description']
 
     if 'section' in field:
         result['section'] = field['section']
