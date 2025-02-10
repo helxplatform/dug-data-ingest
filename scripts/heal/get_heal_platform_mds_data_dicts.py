@@ -9,7 +9,6 @@
 import csv
 import json
 import os
-import re
 import click
 import logging
 import requests
@@ -38,6 +37,7 @@ def translate_data_dictionary_field(field):
 
     result = field.copy()
 
+    # The variable name could be called 'name' or 'property' (for older data dictionaries).
     if 'name' in field:
         result['name'] = field['name']
     elif 'property' in field:
@@ -45,8 +45,11 @@ def translate_data_dictionary_field(field):
     else:
         raise ValueError(f"Unable to translate field {field}: missing name or property")
 
+    # The section name could be called 'section', 'module' or 'node'.
     if 'section' in field:
         result['section'] = field['section']
+    elif 'module' in field:
+        result['section'] = field['module']
     elif 'node' in field:
         result['section'] = field['node']
 
@@ -63,6 +66,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     :param data_dicts_dir: The directory into which to write the data dictionaries.
     :param studies_with_data_dicts_dir: The directory into which to write the studies with data dictionaries.
     :param mds_metadata_endpoint: The Platform MDS endpoint to use.
+    :param mds_limit: The maximum number of studies to download from the MDS. TODO: add support for queries beyond the limit.
     :return: A dictionary of all the studies, with the study ID as keys.
     """
 
@@ -500,6 +504,8 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
     build code that could be quickly rewritten for other MDS schemas.
 
     :param output: The output directory, which should not exist when the script is run.
+    :param mds_metadata_endpoint: The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata
+    :param limit: The maximum number of entries to retrieve from the Platform MDS. Note that some MDS instances have their own built-in limit; if you hit that limit, you will need to update the code to support offsets.
     """
 
     # Don't allow the program to run if the output directory already exists.
