@@ -36,7 +36,7 @@ def translate_data_dictionary_field(field):
     :raise ValueError: if we can't figure out the information in the input field.
     """
 
-    result = {}
+    result = field.copy()
 
     if 'name' in field:
         result['name'] = field['name']
@@ -44,12 +44,6 @@ def translate_data_dictionary_field(field):
         result['name'] = field['property']
     else:
         raise ValueError(f"Unable to translate field {field}: missing name or property")
-
-    if 'title' in field:
-        result['title'] = field['title']
-
-    if 'description' in field:
-        result['description']  = field['description']
 
     if 'section' in field:
         result['section'] = field['section']
@@ -401,6 +395,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                     variable_entry['section'] = var_dict['section']
 
                 # Add constraints.
+                logging.debug(f"Looking for constraints in {data_dict['@id']} for {data_table.get('study_id')}: {json.dumps(var_dict, indent=2, sort_keys=True)}")
                 if 'constraints' in var_dict:
                     var_dict_constraints = var_dict['constraints']
                     
