@@ -40,11 +40,18 @@ DEFAULT_LAKEFS_BRANCH = 'main'
 
 # Indexes and dataclasses to store the loaded indexes.
 @dataclass(frozen=True)
+class Value:
+    code: str
+    label: str
+
+@dataclass(frozen=True)
 class Variable:
     dd_id: str
     id: str
+    name: str
     title: str
     description: str
+    values: list[Value]
     typ: str
 
 @dataclass(frozen=True)
@@ -63,13 +70,24 @@ class Study:
     study_version: str
     modules: list[Module]
 
+# Index variables.
+variables = []
+studies = []
+studies_by_study_id = defaultdict(list)
+
+def get_child_as_text(node, child):
+    children = node.findall(child)
+    if len(children) == 0:
+        return ""
+    elif len(children) == 1:
+        return children[0].text
+    else:
+        raise ValueError(f"Found multiple {child} children in {node}.")
 
 
-
-
-def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
+def load_dbgap_xml_file(lakefs, filepath):
     """
-    Checks a dbGaP XML file for duplicate study IDs and updates the study ID dictionary.
+    Load a dbGaP XML file.
 
     This function reads an XML file opened using LakeFS, parses its structure to retrieve
     the study ID, and checks whether that study ID is already present in a tracking dictionary.
@@ -84,31 +102,51 @@ def check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, filepath):
     :type filepath: str
     :return: None
     """
-    logging.debug(f"Checking file {filepath} for duplicate IDs.")
+    logging.info(f"Loading dbGaP XML file {filepath}.")
 
     # Use the LakeFS library to open the file path.
     with lakefs.open(filepath, "rt") as f:
         doc = xml.etree.ElementTree.parse(f)
         data_table = doc.getroot()
 
-        # For now we only check for duplicated study IDs; in the future we could check for variables as well if that
-        # is useful.
-        study_id = data_table.attrib['study_id']
+        modules = defaultdict(list)
 
-        if study_id in study_id_dict:
-            # We log this as an error, but primarily we set it in the shared dictionary study_id_dict.
-            logging.error(f"Duplicate study ID {study_id} found in {filepath} (previously found in {sorted(study_id_dict[study_id]['filepaths'].keys())}.")
-            if filepath not in study_id_dict[study_id]['filepaths']:
-                study_id_dict[study_id]['filepaths'][filepath] = 0
-            study_id_dict[study_id]['filepaths'][filepath] += 1
-        else:
-            logging.info(f"Found study ID {study_id} in {filepath}.")
-            study_id_dict[study_id] = {
-                'filepaths': {filepath: 1},
-            }
+        for child in data_table:
+            if child.tag == "variable":
+                values = []
+                value_tags = child.findall('value')
+                for value in value_tags:
+                    values.append(Value(code=value.attrib['code'], label=value.text))
+
+                variable = Variable(
+                    dd_id=child.attrib['dd_id'],
+                    id=child.attrib['id'],
+                    name=get_child_as_text(child, 'name'),
+                    title=get_child_as_text(child, 'title'),
+                    description=get_child_as_text(child, 'description'),
+                    typ=get_child_as_text(child, 'type'),
+                    values=values,
+                )
+                variables.append(variable)
+                modules[child.attrib['dd_id']].append(variable)
+            else:
+                raise ValueError(f"Found unknown tag {child} in {filepath}.")
+
+        study = Study(
+            repository=filepath.split("/")[2],
+            filepath=filepath,
+            study_id=data_table.attrib['study_id'],
+            study_name=data_table.attrib['study_name'],
+            study_description=data_table.attrib['study_description'],
+            appl_id=data_table.attrib.get('appl_id', ''),
+            study_version="",
+            modules=modules,
+        )
+
+        logging.info(f"Found study: {study}")
 
 
-def check_object_for_duplicates(lakefs, study_id_dict, obj):
+def load_lakefs_object(lakefs, obj):
     """
     Check an object for duplicates based on its type.
 
@@ -120,7 +158,6 @@ def check_object_for_duplicates(lakefs, study_id_dict, obj):
     files.
 
     :param lakefs: The lakeFS client instance used for file operations.
-    :param study_id_dict: A dictionary containing study IDs to check against for duplicates.
     :param obj: A dictionary representing the object metadata, including type and name.
     :return: None
     """
@@ -133,11 +170,11 @@ def check_object_for_duplicates(lakefs, study_id_dict, obj):
                 logging.debug(f"Skipping file {obj_name} as it doesn't end with `.xml`.")
             else:
                 # It looks like a dbGaP XML file: check it for duplicates.
-                check_dbgap_xml_file_for_duplicates(lakefs, study_id_dict, obj_name)
+                load_dbgap_xml_file(lakefs, obj_name)
         case 'directory':
             # Recurse into this directory.
             for inner_obj in lakefs.ls(obj['name'], detail=True):
-                check_object_for_duplicates(lakefs, study_id_dict, inner_obj)
+                load_lakefs_object(lakefs, inner_obj)
         case _:
             raise RuntimeError(f"Unknown type {obj['type']} in object {json.dumps(obj)}")
 
@@ -184,7 +221,7 @@ def check_duplicates_in_lakefs_repos(repositories):
         # Check repository for duplicates.
         logging.info(f"Checking repository {repository} at branch {branch_name} for duplicates.")
         for obj in lakefs.ls(f"lakefs://{repository}/{branch_name}/", detail=True):
-            check_object_for_duplicates(lakefs, study_id_dict, obj)
+            load_lakefs_object(lakefs, obj)
 
     # Generate an overall report in JSON.
     duplicates = defaultdict(list)
@@ -205,3 +242,4 @@ def check_duplicates_in_lakefs_repos(repositories):
 
 if __name__ == "__main__":
     check_duplicates_in_lakefs_repos()
+
