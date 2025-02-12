@@ -19,7 +19,7 @@
 #
 # At the moment, this is planned to be an independent script, but in the future it might be useful to integrate
 # them into ingest scripts to generate before-and-after reports or something.
-
+import csv
 import json
 import sys
 import xml.etree.ElementTree
@@ -55,8 +55,8 @@ class Variable:
     typ: str
 
 @dataclass(frozen=True)
-class Module:
-    module: str
+class Section:
+    section: str
     variables: list[Variable]
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ class Study:
     study_description: str
     appl_id: str
     study_version: str
-    modules: list[Module]
+    sections: list[Section]
 
 # Index variables.
 variables = []
@@ -85,7 +85,7 @@ def get_child_as_text(node, child):
         raise ValueError(f"Found multiple {child} children in {node}.")
 
 
-def load_dbgap_xml_file(lakefs, filepath):
+def load_dbgap_xml_file(lakefs, repository, filepath):
     """
     Load a dbGaP XML file.
 
@@ -109,7 +109,7 @@ def load_dbgap_xml_file(lakefs, filepath):
         doc = xml.etree.ElementTree.parse(f)
         data_table = doc.getroot()
 
-        modules = defaultdict(list)
+        sections = defaultdict(list)
 
         for child in data_table:
             if child.tag == "variable":
@@ -119,8 +119,8 @@ def load_dbgap_xml_file(lakefs, filepath):
                     values.append(Value(code=value.attrib['code'], label=value.text))
 
                 variable = Variable(
-                    dd_id=child.attrib['dd_id'],
-                    id=child.attrib['id'],
+                    dd_id=child.attrib.get('dd_id', ''),
+                    id=child.attrib.get('id', ''),
                     name=get_child_as_text(child, 'name'),
                     title=get_child_as_text(child, 'title'),
                     description=get_child_as_text(child, 'description'),
@@ -128,25 +128,34 @@ def load_dbgap_xml_file(lakefs, filepath):
                     values=values,
                 )
                 variables.append(variable)
-                modules[child.attrib['dd_id']].append(variable)
+
+                section = child.attrib.get('section', child.attrib.get('module', child.attrib.get('dd_id', '')))
+                if not section:
+                    logging.warning(f"Found variable {child} with no section or module in {filepath}, using 'none'.")
+                    section = "none"
+                sections[section].append(variable)
             else:
                 raise ValueError(f"Found unknown tag {child} in {filepath}.")
 
+        study_id = data_table.attrib['study_id']
+        logging.info(f"Repository {repository} with filepath {filepath} contains {len(sections)} sections and {len(variables)} variables for study ID {study_id}.")
+
+        sections_as_list = list(map(lambda s: Section(section=s, variables=sections[s]), sections.keys()))
         study = Study(
-            repository=filepath.split("/")[2],
+            repository=repository,
             filepath=filepath,
-            study_id=data_table.attrib['study_id'],
-            study_name=data_table.attrib['study_name'],
-            study_description=data_table.attrib['study_description'],
+            study_id=study_id,
+            study_name=data_table.attrib.get('study_name', ''),
+            study_description=data_table.attrib.get('study_description', ''),
             appl_id=data_table.attrib.get('appl_id', ''),
             study_version="",
-            modules=modules,
+            sections=sections_as_list,
         )
+        studies.append(study)
+        studies_by_study_id[study_id].append(study)
 
-        logging.info(f"Found study: {study}")
 
-
-def load_lakefs_object(lakefs, obj):
+def load_lakefs_object(lakefs, repository, obj):
     """
     Check an object for duplicates based on its type.
 
@@ -170,11 +179,11 @@ def load_lakefs_object(lakefs, obj):
                 logging.debug(f"Skipping file {obj_name} as it doesn't end with `.xml`.")
             else:
                 # It looks like a dbGaP XML file: check it for duplicates.
-                load_dbgap_xml_file(lakefs, obj_name)
+                load_dbgap_xml_file(lakefs, repository, obj_name)
         case 'directory':
             # Recurse into this directory.
             for inner_obj in lakefs.ls(obj['name'], detail=True):
-                load_lakefs_object(lakefs, inner_obj)
+                load_lakefs_object(lakefs, repository, inner_obj)
         case _:
             raise RuntimeError(f"Unknown type {obj['type']} in object {json.dumps(obj)}")
 
@@ -189,7 +198,14 @@ def load_lakefs_object(lakefs, obj):
     required=True,
     help="One or more LakeFS repositories to check for duplicates (use `repo/branch_name` to specify a branch name).",
 )
-def check_duplicates_in_lakefs_repos(repositories):
+@click.option(
+    "--output",
+    "-o",
+    type=click.File("w"),
+    metavar="FILE",
+    default='-',
+    help="Path to the output CSV file. If not specified, the output will be printed to stdout.",)
+def check_duplicates_in_lakefs_repos(repositories, output):
     """
     Detects duplicate study IDs in specified LakeFS repositories and generates a report
     identifying the duplicates. The function connects to the LakeFS server, iterates
@@ -209,7 +225,6 @@ def check_duplicates_in_lakefs_repos(repositories):
     lakefs = LakeFSFileSystem()
 
     # Check each repository to be checked.
-    study_id_dict = dict()
     for repository_reference in repositories:
         # Handle repositories with branch names (generally represented as e.g. `heal-studies:v2.0`).
         if ':' in repository_reference:
@@ -221,23 +236,31 @@ def check_duplicates_in_lakefs_repos(repositories):
         # Check repository for duplicates.
         logging.info(f"Checking repository {repository} at branch {branch_name} for duplicates.")
         for obj in lakefs.ls(f"lakefs://{repository}/{branch_name}/", detail=True):
-            load_lakefs_object(lakefs, obj)
+            load_lakefs_object(lakefs, repository_reference, obj)
 
-    # Generate an overall report in JSON.
-    duplicates = defaultdict(list)
-    count_duplicate_study_ids = 0
-    for study_id in sorted(study_id_dict.keys()):
-        if len(study_id_dict[study_id]['filepaths']) > 1:
-            # Duplicate filepaths!
-            count_duplicate_study_ids += 1
-            duplicates[study_id] = sorted(study_id_dict[study_id]['filepaths'].keys())
-    json.dump(duplicates, sys.stdout, indent=2, sort_keys=True)
+    # Generate an overall report in CSV.
+    fieldnames = ['HDPID']
+    fieldnames.extend(sorted(repositories))
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for study_id in sorted(studies_by_study_id.keys()):
+        row = {'HDPID': study_id}
+        studies = studies_by_study_id[study_id]
+        for repository in repositories:
+            filtered_studies = list(filter(lambda s: s.repository == repository, studies))
 
-    # Provide a final duplicate count.
-    logging.info(f"Found {count_duplicate_study_ids} duplicate study IDs.")
+            section_count = 0
+            variable_count = 0
+            for study in filtered_studies:
+                for section in study.sections:
+                    section_count += 1
+                    variable_count += len(section.variables)
 
-    # Exit with an exit code, which will be zero if there are no duplicates, and the number of duplicates if there are some.
-    sys.exit(count_duplicate_study_ids)
+            if len(filtered_studies) == 0:
+                row[repository] = ""
+            else:
+                row[repository] = f"{len(filtered_studies)} DDs containing {section_count} sections containing {variable_count} variables"
+        writer.writerow(row)
 
 
 if __name__ == "__main__":
