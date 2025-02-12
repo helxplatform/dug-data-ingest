@@ -316,6 +316,19 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         else:
             logging.warning(f"No HDP ID found in data dictionary file {file_path}")
 
+        # If there is a research program in gen3_discovery, include it here.
+        if 'research_program' in study['gen3_discovery'] and study['gen3_discovery']['research_program'] != "":
+            research_program = study['gen3_discovery']['research_program']
+            data_table.set('research_program', research_program)
+
+            if research_program.lower() in {
+                'back pain consortium research program'
+            }:
+                data_table.set('study_type', 'HEAL Research Networks')
+            else:
+                data_table.set('study_type', 'HEAL Studies')
+
+
         # Create a non-standard appl_id field just in case we need it later.
         # This should be fine for now, but there is also a `comments` element that we can
         # store information like this in if we need to.
@@ -402,7 +415,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 logging.debug(f"Looking for constraints in {data_dict['@id']} for {data_table.get('study_id')}: {json.dumps(var_dict, indent=2, sort_keys=True)}")
                 if 'constraints' in var_dict:
                     var_dict_constraints = var_dict['constraints']
-                    
+
                     # Check for minimum and maximum constraints.
                     if 'minimum' in var_dict_constraints:
                         logical_min = ET.SubElement(variable, 'logical_min')
