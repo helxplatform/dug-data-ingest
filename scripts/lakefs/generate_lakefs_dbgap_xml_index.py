@@ -25,7 +25,6 @@
 # them into ingest scripts to generate before-and-after reports or something.
 import csv
 import json
-import sys
 import xml.etree.ElementTree
 from collections import defaultdict
 import logging
@@ -265,12 +264,13 @@ def generate_lakefs_dbgap_xml_index(repositories, output):
             load_lakefs_object(lakefs, repository_reference, obj)
 
     # Generate an overall report in CSV.
-    fieldnames = ['HDPID']
+    fieldnames = ['HDPID', 'repository_count']
     fieldnames.extend(sorted(repositories))
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     for study_id in sorted(studies_by_study_id.keys()):
         row = {'HDPID': study_id}
+        repository_count = 0
         for repository in repositories:
             filtered_studies = list(filter(lambda s: s.repository == repository, studies_by_study_id[study_id]))
 
@@ -285,6 +285,9 @@ def generate_lakefs_dbgap_xml_index(repositories, output):
                 row[repository] = ""
             else:
                 row[repository] = f"{len(filtered_studies)} DDs containing {section_count} sections containing {variable_count} variables"
+                repository_count += 1
+
+        row['repository_count'] = repository_count
         writer.writerow(row)
 
 
