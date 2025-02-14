@@ -20,6 +20,7 @@ import xml.dom.minidom as minidom
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
+HEAL_STUDY_GUID_TYPE = 'discovery_metadata'
 HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 
 # Turn on logging
@@ -88,6 +89,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     #
     # TODO: extend this so it can function even if there are more than mds_limit data dictionaries.
     result = requests.get(mds_metadata_endpoint, params={
+        '_guid_type': HEAL_STUDY_GUID_TYPE,
         'limit': mds_limit,
     })
     if not result.ok:
