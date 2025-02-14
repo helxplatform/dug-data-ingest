@@ -76,6 +76,25 @@ studies = []
 studies_by_study_id = defaultdict(list)
 
 def get_child_as_text(node, child):
+    """
+    Retrieves the text content of a specified child element within an XML node.
+
+    The function searches for all child elements matching the `child` tag within
+    the given `node`. As long as there is exactly one matching child element, it
+    returns the text content of that element. If there are more than one matching
+    elements, it raises a `ValueError`.
+
+    :param node: The parent XML node from which to search for the child
+        elements.
+    :type node: xml.etree.ElementTree.Element
+    :param child: The tag name of the child element to retrieve the text from.
+    :type child: str
+    :return: The text content of the child element if exactly one child
+        is found, or an empty string if no matching child elements exist.
+    :rtype: str
+    :raises ValueError: If multiple child elements matching the `child` tag
+        are found within the node.
+    """
     children = node.findall(child)
     if len(children) == 0:
         return ""
@@ -94,10 +113,12 @@ def load_dbgap_xml_file(lakefs, repository, filepath):
     If the study ID exists, the number of occurrences of the file in the dictionary is updated;
     otherwise, the study ID is added to the dictionary with the respective file path and count.
 
+    We use the global index variables (variables, studies, studies_by_study_id) to store the loaded data.
+
     :param lakefs: Object used to open the XML file from a LakeFS repository.
     :type lakefs: Any
-    :param study_id_dict: A dictionary tracking processed study IDs and their associated file paths.
-    :type study_id_dict: dict
+    :param repository: The name of the LakeFS repository containing the file, including the tag or branch name.
+    :type repository: str
     :param filepath: Path to the XML file being checked for duplicate study IDs.
     :type filepath: str
     :return: None
@@ -109,6 +130,7 @@ def load_dbgap_xml_file(lakefs, repository, filepath):
         doc = xml.etree.ElementTree.parse(f)
         data_table = doc.getroot()
 
+        # Group the variables into sections.
         sections = defaultdict(list)
 
         for child in data_table:
@@ -205,7 +227,7 @@ def load_lakefs_object(lakefs, repository, obj):
     metavar="FILE",
     default='-',
     help="Path to the output CSV file. If not specified, the output will be printed to stdout.",)
-def check_duplicates_in_lakefs_repos(repositories, output):
+def generate_lakefs_dbgap_xml_index(repositories, output):
     """
     Detects duplicate study IDs in specified LakeFS repositories and generates a report
     identifying the duplicates. The function connects to the LakeFS server, iterates
@@ -245,9 +267,8 @@ def check_duplicates_in_lakefs_repos(repositories, output):
     writer.writeheader()
     for study_id in sorted(studies_by_study_id.keys()):
         row = {'HDPID': study_id}
-        studies = studies_by_study_id[study_id]
         for repository in repositories:
-            filtered_studies = list(filter(lambda s: s.repository == repository, studies))
+            filtered_studies = list(filter(lambda s: s.repository == repository, studies_by_study_id[study_id]))
 
             section_count = 0
             variable_count = 0
@@ -264,5 +285,5 @@ def check_duplicates_in_lakefs_repos(repositories, output):
 
 
 if __name__ == "__main__":
-    check_duplicates_in_lakefs_repos()
+    generate_lakefs_dbgap_xml_index()
 
