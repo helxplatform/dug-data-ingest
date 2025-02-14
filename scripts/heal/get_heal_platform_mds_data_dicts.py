@@ -512,7 +512,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
 @click.option('--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
               help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
 @click.option('--hdp-to-study-type-mappings-csv',
-              default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/hdpid-to-heal-study-type.csv'),
+              default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
               type=click.Path(exists=True, file_okay=True, dir_okay=False),
               help='The CSV file that maps HDP study IDs to HEAL study types.')
 @click.option('--limit', default=MDS_DEFAULT_LIMIT, help='The maximum number of entries to retrieve from the Platform '
