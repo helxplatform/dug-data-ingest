@@ -2,6 +2,10 @@
 #
 # generate_lakefs_dbgap_xml_index.py - Generate an index of all the dbGaP XML files in a set of LakeFS repositories.
 #
+# SYNOPSIS
+#   python scripts/lakefs/generate_lakefs_dbgap_xml_index.py -r heal-mds-import -r heal-studies:v2.0 \
+#       -r heal-research-programs:v1.0 -r sparc:v1.0 -r nida:v1.0 -r bacpac:v1.0 -r ctn:v1.0 > ~/Downloads/hdp-index.csv
+#
 # For some applications (at the moment, HEAL), we have data dictionaries flowing into LakeFS from multiple
 # sources -- one repository from the Platform MDS, one repository from the GitHub repository, and so on.
 # At the moment, Roger doesn't have any built-in support for checking for duplicates.
