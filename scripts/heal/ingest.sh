@@ -41,15 +41,20 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # Sync (https://rclone.org/commands/rclone_sync/)
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
-rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Studies" "lakefs:heal-mds-studies/main/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-research-networks/main/" $RCLONE_FLAGS
 
 # Step 4. Upload logs with RClone.
-rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/logs/" "lakefs:heal-mds-studies/main/logs/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/logs/" "lakefs:heal-mds-research-networks/main/logs/" $RCLONE_FLAGS
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
-curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
+curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/heal-mds-studies/branches/main/commits" \
   -H "Content-Type: application/json" \
-  -d "{\"message\": \"Updated HEAL data dictionaries starting at ${START_DATE}.\"}"
+  -d "{\"message\": \"Updated HEAL data dictionaries for HEAL Studies starting at ${START_DATE}.\"}"
+curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/heal-mds-research-networks/branches/main/commits" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Updated HEAL data dictionaries for HEAL Research Networks starting at ${START_DATE}.\"}"
 
 # Note success.
 echo Downloads complete at `date`.
