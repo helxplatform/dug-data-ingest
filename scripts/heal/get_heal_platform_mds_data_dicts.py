@@ -244,7 +244,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     return study_ids, data_dict_ids_within_studies
 
 
-def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_for_hdpid = None):
+def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_for_hdpid = None, research_network_name_for_hdpid = None):
     """
     Generate dbGaP files from data dictionaries containing
 
@@ -252,6 +252,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
     :param studies_with_data_dicts_dir: The directory that contains studies containing data dictionaries.
         (This should work for the data_dicts directory too, but then we have no way of linking them to studies.)
     :param subdirectory_for_hdpid: A function that -- given an HDP ID -- returns the subdirectory name to put it into.
+    :param research_network_name_for_hdpid: A function that -- given an HDP ID -- returns the research network name for that HDPID.
     :return: The list of dbGaP files generated.
     """
 
@@ -326,13 +327,11 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
             research_program = study['gen3_discovery']['research_program']
             data_table.set('research_program', research_program)
 
-            if research_program.lower() in {
-                'back pain consortium research program'
-            }:
-                data_table.set('study_type', 'HEAL Research Networks')
-            else:
-                data_table.set('study_type', 'HEAL Studies')
-
+        # Look up and store the research_network_name if we have one.
+        if research_network_name_for_hdpid:
+            research_network_name = research_network_name_for_hdpid(study_id)
+            if research_network_name:
+                data_table.set('research_network_name', research_network_name)
 
         # Create a non-standard appl_id field just in case we need it later.
         # This should be fine for now, but there is also a `comments` element that we can
@@ -552,7 +551,10 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study
     with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
         mappings_reader = csv.DictReader(mappingsf)
         for mapping in mappings_reader:
-            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = mapping['HEAL Study Type']
+            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
+                'research_network': mapping['Research Network Name'],
+                'study_type': mapping['HEAL Study Type'],
+            }
 
     # Create the output directory.
     os.makedirs(output, exist_ok=True)
@@ -571,7 +573,7 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study
     dbgap_dir = os.path.join(output, 'dbGaPs')
     os.makedirs(dbgap_dir, exist_ok=True)
 
-    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, lambda hdp_id: hdp_to_study_type_mappings[hdp_id])
+    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['study_type'], lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
     logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
 
 
