@@ -6,4 +6,4 @@ jobExecutor:
   script: heal/ingest.sh
   lakeFSRepository: heal-mds-import
   image:
-    tag: fix-additional-heal-bugs
+    tag: add-heal-study-type
