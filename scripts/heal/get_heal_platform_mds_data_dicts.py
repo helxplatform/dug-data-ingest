@@ -235,7 +235,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
         logging.debug(f"Wrote data dictionary to {dd_id_json_path}.json")
 
     if len(data_dict_ids_not_within_studies) > 0:
-        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)}are present in the Platform "
+        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)} are present in the Platform "
                         f"MDS, but aren't associated with studies: {data_dict_ids_not_within_studies}")
 
     # Return the list of studies and the studies with data dictionaries.
