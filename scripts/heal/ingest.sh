@@ -47,8 +47,6 @@ rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-resea
 
 # Step 4. Upload logs with RClone.
 rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/logs/" "lakefs:heal-mds-studies/main/logs/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/logs/" "lakefs:heal-mds-research-networks/main/logs/" $RCLONE_FLAGS
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
