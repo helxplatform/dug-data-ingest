@@ -552,7 +552,7 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study
     with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
         mappings_reader = csv.DictReader(mappingsf)
         for mapping in mappings_reader:
-            hdp_to_study_type_mappings[mapping['HDPID']] = mapping['HEAL Study Type']
+            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = mapping['HEAL Study Type']
 
     # Create the output directory.
     os.makedirs(output, exist_ok=True)
