@@ -20,7 +20,10 @@ import xml.dom.minidom as minidom
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
-HEAL_STUDY_GUID_TYPE = 'discovery_metadata'
+HEAL_STUDY_GUID_TYPES = [
+    'discovery_metadata',                   # Fully registered studies.
+    'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
+]
 HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 
 # Turn on logging
@@ -88,13 +91,15 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     # (which we store in metadata_ids) and filter out the data dictionary identifiers we've seen before.
     #
     # TODO: extend this so it can function even if there are more than mds_limit data dictionaries.
-    result = requests.get(mds_metadata_endpoint, params={
-        '_guid_type': HEAL_STUDY_GUID_TYPE,
-        'limit': mds_limit,
-    })
-    if not result.ok:
-        raise RuntimeError(f'Could not retrieve metadata list: {result}')
-    metadata_ids = result.json()
+    metadata_ids = []
+    for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
+        result = requests.get(mds_metadata_endpoint, params={
+            '_guid_type': heal_study_guid_type,
+            'limit': mds_limit,
+        })
+        if not result.ok:
+            raise RuntimeError(f'Could not retrieve metadata list for guid_type {heal_study_guid_type}: {result}')
+        metadata_ids.extend(result.json())
     study_ids = list(set(metadata_ids) - set(datadict_ids))
 
     # Download all the studies. This allows us to identify which study each data dictionary is connected to, and
