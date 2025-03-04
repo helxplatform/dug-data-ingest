@@ -9,6 +9,8 @@ import os
 import pandas as pd
 import numpy as np
 import sys
+from xml_generator import process_study
+from xml_generator import read_gen3_metadata
 
 def fix_nan_values(df):
     """Replace NaN values in DataFrame with appropriate empty values"""
@@ -61,7 +63,7 @@ def process_study_safe(study_id, study_df, study_Gen3, output_dir):
         os.makedirs(study_dir, exist_ok=True)
         
         # Import process_study here to avoid circular imports
-        from generate_xml import process_study
+
         result = process_study(base_study_id, study_df_fixed, study_Gen3_fixed, study_dir)
         
         if result:
@@ -102,7 +104,6 @@ def generate_xml_for_study_safe(accession_id, picsure_csv, gen3_csv, output_dir)
             return False
             
         # Read Gen3 data
-        from generate_xml import read_gen3_metadata
         gen3_full = read_gen3_metadata(gen3_csv)
         if study_id not in gen3_full.index:
             warning_msg = f"No Gen3 data found for study {study_id}"
