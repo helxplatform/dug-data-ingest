@@ -26,7 +26,7 @@ class Gen3DataProcessor:
         os.makedirs(self.output_dir, exist_ok=True)
         
     def setup_logging(self):
-        self.log_file = os.path.join(self.output_dir, "processing.log")
+        self.log_file = os.path.join(self.output_dir, "gen3_processing.log")
 
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
