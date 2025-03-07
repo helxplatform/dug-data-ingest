@@ -114,9 +114,6 @@ def create_gap_exchange_xml(study_id, picsure_df, gen3_metadata):
     program = ET.SubElement(config, "Program")
     program.text = metadata_dict.get('Program', '')
     
-    if 'Notes' in metadata_dict and pd.notna(metadata_dict['Notes']):
-        notes = ET.SubElement(config, "Notes")
-        notes.text = metadata_dict['Notes']
     
     return root
 
@@ -171,9 +168,14 @@ def create_data_dict_xml(df_group, table_id, study_id, gen3_metadata):
     return root
 
 def save_xml(root, filepath, add_stylesheet=True):
+    #We use minidom's toprettyxml() for better formatting control than ElementTree provides
     xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="    ")
     
-    if add_stylesheet:
+    #remove the XML declartion that minidom adds
+    if xml_str.startswith('<?xml'):
+        xml_str = xml_str.split('\n', 1)[1]
+
+    if add_stylesheet:  
         xml_str = '<?xml version="1.0" encoding="UTF-8"?>\n<?xml-stylesheet type="text/xsl" href="./datadict_v2.xsl"?>\n' + xml_str
     else:
         xml_str = '<?xml version=\'1.0\' encoding=\'utf-8\'?>\n' + xml_str
