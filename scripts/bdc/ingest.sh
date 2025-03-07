@@ -37,7 +37,7 @@ python get_bdc_studies_md_from_picsure.py --output-dir "$PICSURE_OUTPUT_PATH"
 
 # Step 1.1 Find PicSure data file
 sleep 1
-PICSURE_DATA_FILE=$(find "$PICSURE_OUTPUT_PATH" -name "cleaned_pic_sure_data*.csv" -o -name "pic_sure_data*.csv" | sort -r | head -n 1)
+PICSURE_DATA_FILE=$(find "$PICSURE_OUTPUT_PATH" -name "cleaned_pic_sure_data*.csv" | sort -r | head -n 1)
 
 
 # Step 2: Gen3 data extraction
