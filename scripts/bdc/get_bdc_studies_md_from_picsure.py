@@ -77,10 +77,10 @@ def extract_picsure_data(output_dir, token=None):
                 sys.exit("Error: PICSURE_TOKEN environment variable not set")
             token = os.environ["PICSURE_TOKEN"]
         
-        PICSURE_network_URL = "https://picsure.biodatacatalyst.nhlbi.nih.gov/picsure"
+        PICSURE_NETWORK_URL = "https://picsure.biodatacatalyst.nhlbi.nih.gov/picsure"
         
-        logging.info(f"Connecting to PicSure at {PICSURE_network_URL}")
-        bdc = PicSureBdcAdapter.Adapter(PICSURE_network_URL, token)
+        logging.info(f"Connecting to PicSure at {PICSURE_NETWORK_URL}")
+        bdc = PicSureBdcAdapter.Adapter(PICSURE_NETWORK_URL, token)
         
         logging.info("Setting up dictionary")
         dictionary = bdc.useDictionary().dictionary()
