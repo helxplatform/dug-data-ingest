@@ -16,9 +16,9 @@ import argparse
 GEN3_DOWNLOAD_LIMIT = 50
 
 class Gen3DataProcessor:
-    def __init__(self, output_dir=None):
+    def __init__(self, output_dir="gen3_output"):
         # Use user-specified output directory
-        self.output_dir = output_dir if output_dir else "gen3_output"
+        self.output_dir = output_dir
         self.setup_directory()
         self.setup_logging()
         
@@ -68,8 +68,7 @@ class Gen3DataProcessor:
         
         if len(complete_list) != len(set(complete_list)):
             duplicate_ids = sorted([ident for ident, count in Counter(complete_list).items() if count > 1])
-            self.logger.warning(f"Found duplicate discovery_metadata: {duplicate_ids}")
-        
+            raise ValueError(f"Found duplicate discovery_metadata: {duplicate_ids}")
         return complete_list
 
     def download_raw_data(self):
@@ -93,7 +92,7 @@ class Gen3DataProcessor:
         with open(self.raw_file, 'w', newline='') as csvfile:
             csv_writer = csv.DictWriter(csvfile, fieldnames=[
                 'Accession', 'Consent', 'Study Name', 'Program', 
-                'Last modified', 'Notes', 'Description'
+                'Last modified', 'Description'
             ])
             csv_writer.writeheader()
             
@@ -102,7 +101,6 @@ class Gen3DataProcessor:
                 study_name = ''
                 program_names = []
                 description = ''
-                notes = ''
                 last_modified = str(datetime.now().date())
                 
                 # Get study info
@@ -118,21 +116,22 @@ class Gen3DataProcessor:
                         # Handle study name
                         if 'full_name' in gen3_discovery:
                             study_name = gen3_discovery['full_name']
-                            notes += f"Name: {gen3_discovery.get('name', '')}, short name: {gen3_discovery.get('short_name', '')}.\n"
                         elif 'name' in gen3_discovery:
                             study_name = gen3_discovery['name']
-                            notes += f"Short name: {gen3_discovery.get('short_name', '')}.\n"
                         elif 'short_name' in gen3_discovery:
                             study_name = gen3_discovery['short_name']
                         else:
                             study_name = '(no name)'
                         
                         # Handle program name
-                        if 'authz' in gen3_discovery:
-                            match = re.fullmatch(r'^/programs/(.*)/projects/(.*)$', gen3_discovery['authz'])
-                            if match:
-                                program_names.append(match.group(1))
-                        
+                        try:
+                            if 'authz' in gen3_discovery:
+                                match = re.fullmatch(r'^/programs/(.*)/projects/(.*)$', gen3_discovery['authz'])
+                                if match:
+                                    program_names.append(match.group(1))
+                        except Exception as e:
+                            self.logger.warning(f"Error parsing 'authz' value for study {study_id}: {str(e)}")
+
                         description = gen3_discovery.get('study_description', '')
                     
                     # Extract accession and consent
@@ -152,7 +151,6 @@ class Gen3DataProcessor:
                         'Description': description,
                         'Program': '|'.join(sorted(set(filter(None, program_names)))),
                         'Last modified': last_modified,
-                        'Notes': notes.strip()
                     })
                     
                 except requests.exceptions.RequestException as e:
