@@ -23,27 +23,12 @@ from xml_utils import (
 # Configuration with defaults (can be overridden via command line)
 DEFAULT_CONFIG = {
     "GEN3_CSV": "/path/to/gen3_studies_filtered.csv",
-    "PICSURE_CSV": "/path/to/pic_sure_data.csv",
+    "PICSURE_CSV": "/path/to/cleaned_pic_sure_data.csv",
     "OUTPUT_DIR": "output",
     "ACCESSION_FIELD": "Accession",
     "STUDY_ID_FIELD": "study_id",
     "STUDY_NAME_FIELD": "Study Name",
 }
-
-def read_study_Gen3(gen3_metadata_file):
-    try:
-        logging.info(f"Reading metadata file: {gen3_metadata_file}")
-        df = pd.read_csv(gen3_metadata_file)
-        df['study_id'] = df['Accession'].str.split('.').str[0]
-        logging.info(f"Found {len(df)} studies in metadata file")
-        return df.set_index('study_id')
-    except Exception as e:
-        logging.error(f"Error reading study metadata file: {e}")
-        raise
-
-def create_output_directory(base_dir):
-    os.makedirs(base_dir, exist_ok=True)
-    return base_dir
 
 def setup_config():
     parser = argparse.ArgumentParser(
@@ -87,6 +72,21 @@ def setup_config():
     config["ALWAYS_GENERATE"] = args.always_generate
     
     return config
+
+def read_study_Gen3(gen3_metadata_file):
+    try:
+        logging.info(f"Reading metadata file: {gen3_metadata_file}")
+        df = pd.read_csv(gen3_metadata_file)
+        df['study_id'] = df['Accession'].str.split('.').str[0]
+        logging.info(f"Found {len(df)} studies in metadata file")
+        return df.set_index('study_id')
+    except Exception as e:
+        logging.error(f"Error reading study metadata file: {e}")
+        raise
+
+def create_output_directory(base_dir):
+    os.makedirs(base_dir, exist_ok=True)
+    return base_dir
 
 def write_summary(timestamp_dir, summary_df):
     # Calculate statistics
@@ -201,7 +201,7 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         
         # Update study directory to be within program directory
         study_dir = os.path.join(program_dir, dbgap_id)
-    except (IndexError, KeyError, Exception) as e:
+    except (IndexError, KeyError) as e:
         logging.warning(f"Could not determine program for study {study_id}: {str(e)}")
         logging.warning("Using default output directory")
         program_name = 'unknown_program'
