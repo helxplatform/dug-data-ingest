@@ -242,20 +242,22 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
         logging.debug(f"Wrote data dictionary to {dd_id_json_path}.json")
 
     if len(data_dict_ids_not_within_studies) > 0:
-        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)}are present in the Platform "
+        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)} are present in the Platform "
                         f"MDS, but aren't associated with studies: {data_dict_ids_not_within_studies}")
 
     # Return the list of studies and the studies with data dictionaries.
     return study_ids, data_dict_ids_within_studies
 
 
-def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
+def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_for_hdpid = None, research_network_name_for_hdpid = None):
     """
     Generate dbGaP files from data dictionaries containing
 
     :param dbgap_dir: The dbGaP directory into which we write the dbGaP files.
     :param studies_with_data_dicts_dir: The directory that contains studies containing data dictionaries.
         (This should work for the data_dicts directory too, but then we have no way of linking them to studies.)
+    :param subdirectory_for_hdpid: A function that -- given an HDP ID -- returns the subdirectory name to put it into.
+    :param research_network_name_for_hdpid: A function that -- given an HDP ID -- returns the research network name for that HDPID.
     :return: The list of dbGaP files generated.
     """
 
@@ -318,10 +320,23 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
             data_table.set('study_description', study_description)
 
         # Determine the data_table study_id from the internal HEAL Data Platform (HDP) identifier.
+        study_id = None
         if '_hdp_uid' in study['gen3_discovery']:
-            data_table.set('study_id', HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid'])
+            study_id = HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid']
+            data_table.set('study_id', study_id)
         else:
             logging.warning(f"No HDP ID found in data dictionary file {file_path}")
+
+        # If there is a research program in gen3_discovery, include it here.
+        if 'research_program' in study['gen3_discovery'] and study['gen3_discovery']['research_program'] != "":
+            research_program = study['gen3_discovery']['research_program']
+            data_table.set('research_program', research_program)
+
+        # Look up and store the research_network_name if we have one.
+        if research_network_name_for_hdpid:
+            research_network_name = research_network_name_for_hdpid(study_id)
+            if research_network_name:
+                data_table.set('research_network_name', research_network_name)
 
         # Create a non-standard appl_id field just in case we need it later.
         # This should be fine for now, but there is also a `comments` element that we can
@@ -409,7 +424,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 logging.debug(f"Looking for constraints in {data_dict['@id']} for {data_table.get('study_id')}: {json.dumps(var_dict, indent=2, sort_keys=True)}")
                 if 'constraints' in var_dict:
                     var_dict_constraints = var_dict['constraints']
-                    
+
                     # Check for minimum and maximum constraints.
                     if 'minimum' in var_dict_constraints:
                         logical_min = ET.SubElement(variable, 'logical_min')
@@ -461,8 +476,18 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         xml_str = ET.tostring(data_table, encoding='unicode')
         pretty_xml_str = minidom.parseString(xml_str).toprettyxml()
 
+        # Calculate the subdirectory for this study.
+        subdir = None
+        if subdirectory_for_hdpid:
+            subdir = subdirectory_for_hdpid(study_id)
+
+        if subdir:
+            os.makedirs(os.path.join(dbgap_dir, subdir), exist_ok=True)
+            output_xml_filename = os.path.join(dbgap_dir, subdir, data_dict_file.replace('.json', '.xml'))
+        else:
+            output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
+
         # Produce the XML file by changing the .json to .xml.
-        output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
         with open(output_xml_filename, 'w') as f:
             f.write(pretty_xml_str)
         logging.info(f"Wrote {data_table} (containing {total_variable_count} variables from {count_data_dictionaries} data dictionaries) to {output_xml_filename}")
@@ -490,11 +515,15 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 @click.argument('output', type=click.Path(exists=False), required=True)
 @click.option('--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
               help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
+@click.option('--hdp-to-study-type-mappings-csv',
+              default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
+              type=click.Path(exists=True, file_okay=True, dir_okay=False),
+              help='The CSV file that maps HDP study IDs to HEAL study types.')
 @click.option('--limit', default=MDS_DEFAULT_LIMIT, help='The maximum number of entries to retrieve from the Platform '
                                                          'MDS. Note that some MDS instances have their own built-in '
                                                          'limit; if you hit that limit, you will need to update the '
                                                          'code to support offsets.')
-def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
+def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study_type_mappings_csv, limit):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
     which at the moment is the dbGaP XML format (as described in https://ftp.ncbi.nlm.nih.gov/dbgap/dtd/).
@@ -521,6 +550,17 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
             f"To ensure that existing data is not partially overwritten, the specified output directory ({output}) must not exist.")
         exit(1)
 
+    # Load the HDP to HEAL Study Type CSV file.
+    hdp_to_study_type_mappings_csv_filename = click.format_filename(hdp_to_study_type_mappings_csv)
+    hdp_to_study_type_mappings = {}
+    with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
+        mappings_reader = csv.DictReader(mappingsf)
+        for mapping in mappings_reader:
+            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
+                'research_network': mapping['Research Network Name'],
+                'study_type': mapping['HEAL Study Type'],
+            }
+
     # Create the output directory.
     os.makedirs(output, exist_ok=True)
 
@@ -538,7 +578,7 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit):
     dbgap_dir = os.path.join(output, 'dbGaPs')
     os.makedirs(dbgap_dir, exist_ok=True)
 
-    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir)
+    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['study_type'], lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
     logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
 
 
