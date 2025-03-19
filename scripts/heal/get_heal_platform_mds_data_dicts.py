@@ -10,6 +10,7 @@ import csv
 import json
 import os
 import re
+import glob
 import click
 import logging
 import requests
@@ -474,13 +475,61 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
 
     return dbgap_files_generated
 
-def generate_kgx_from_studies_files(studies_dir, kgx_file):
+def make_study_kgx_node(gen3_discovery, mds_metadata_endpoint):
+    """Generate a kgx-style node dict from the Gen3 study info JSON"""
+    # Pull these two sub-dicts out for easier reference
+    study_metadata = gen3_discovery.get('study_metadata', {})
+    minimal_info = gen3_discovery.get('minimal_info', {})
+    if not minimal_info:
+        # sometimes this shows up in different places
+        minimal_info = study_metadata.get('minimal_info', {})
+    metadata_location = gen3_discovery.get('metadata_location', {})
+    study_id = gen3_discovery['_hdp_uid']
+    node = {
+        "id": study_id,
+        "name": gen3_discovery['project_title'],
+        "categories": [
+            "biolink:Study"
+        ],
+        "description" : minimal_info.get('study_description', ""),
+        "iri": mds_metadata_endpoint + "/" + study_id,
+        "abstract": gen3_discovery.get("study_description_summary", ""),
+        "archive_date": gen3_discovery.get("archive_date", ""),
+    }
+    return node
+
+def make_kgx(nodes, edges):
+    """Very basic kgx format assembler"""
+    kgx = {
+        'nodes': nodes,
+        'edges': edges,
+    }
+
+    return kgx
+
+def generate_kgx_from_studies_files(studies_dir, kgx_file,
+                                    mds_metadata_endpoint):
     """Read SLMD files from the studies_dir, write out kgx_file
 
     Study level metadata kgx file generation uses the cached files in the
     studies_dir from the previous step in order to generate the kgx output
     file.
     """
+    nodes = []
+    edges = []
+    for study_file in glob.glob(f'{studies_dir}/*.json'):
+        with open(study_file, 'rt') as sf:
+            study = json.load(sf)
+        gen3_discovery = study.get('gen3_discovery', None)
+
+        if not gen3_discovery:
+            continue
+
+        nodes.append(make_study_kgx_node(gen3_discovery,
+                                         mds_metadata_endpoint))
+
+    logging.info("Writing out %d kgx nodes", len(nodes))
+    json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
 
 
 # Set up command line arguments.
@@ -495,9 +544,14 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file):
     'MDS. Note that some MDS instances have their own built-in '
     'limit; if you hit that limit, you will need to update the '
     'code to support offsets.')
+@click.option(
+    '--use-cached/--no-use-cached', default=False,
+    help='Just use files already on disk, do not download any new'
+    'data from platform. Used for testing.')
 @click.option('--kgx-file', type=click.File('w'), default=None,
               required=False, help="Optional KGX output file")
-def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit, kgx_file):
+def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit,
+                                     use_cached, kgx_file):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
     which at the moment is the dbGaP XML format (as described in https://ftp.ncbi.nlm.nih.gov/dbgap/dtd/).
@@ -517,7 +571,7 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit, kgx_f
     """
 
     # Don't allow the program to run if the output directory already exists.
-    if os.path.exists(output):
+    if os.path.exists(output) and not use_cached:
         logging.error(
             f"To ensure that existing data is not partially overwritten, "
             f"the specified output directory ({output}) must not exist.")
@@ -534,7 +588,11 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit, kgx_f
     os.makedirs(data_dicts_dir, exist_ok=True)
     studies_with_data_dicts_dir = os.path.join(output, 'studies_with_data_dicts')
     os.makedirs(studies_with_data_dicts_dir, exist_ok=True)
-    download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, mds_metadata_endpoint, limit)
+
+    if not use_cached:
+        download_from_mds(studies_dir, data_dicts_dir,
+                          studies_with_data_dicts_dir, mds_metadata_endpoint,
+                          limit)
 
     # Generate dbGaP entries from the studies and the data dictionaries.
     dbgap_dir = os.path.join(output, 'dbGaPs')
@@ -545,7 +603,8 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit, kgx_f
                  f"in {dbgap_dir}.")
 
     if kgx_file:
-        generate_kgx_from_studies_files(studies_dir, kgx_file)
+        generate_kgx_from_studies_files(studies_dir, kgx_file,
+                                        mds_metadata_endpoint)
 
 
 # Run get_heal_platform_mds_data_dicts() if not used as a library.
