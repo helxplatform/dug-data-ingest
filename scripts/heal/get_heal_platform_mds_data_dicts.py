@@ -22,6 +22,10 @@ import xml.dom.minidom as minidom
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
+HEAL_STUDY_GUID_TYPES = [
+    'discovery_metadata',                   # Fully registered studies.
+    'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
+]
 HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 
 # Turn on logging
@@ -37,8 +41,9 @@ def translate_data_dictionary_field(field):
     :raise ValueError: if we can't figure out the information in the input field.
     """
 
-    result = {}
+    result = field.copy()
 
+    # The variable name could be called 'name' or 'property' (for older data dictionaries).
     if 'name' in field:
         result['name'] = field['name']
     elif 'property' in field:
@@ -46,16 +51,13 @@ def translate_data_dictionary_field(field):
     else:
         raise ValueError(f"Unable to translate field {field}: missing name or property")
 
-    if 'title' in field:
-        result['title'] = field['title']
-
-    if 'description' in field:
-        result['description']  = field['description']
-
+    # The section name could be called 'section', 'module' or 'node'.
     if 'section' in field:
-        result['module'] = field['section']
+        result['section'] = field['section']
+    elif 'module' in field:
+        result['section'] = field['module']
     elif 'node' in field:
-        result['module'] = field['node']
+        result['section'] = field['node']
 
     return result
 
@@ -70,6 +72,7 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     :param data_dicts_dir: The directory into which to write the data dictionaries.
     :param studies_with_data_dicts_dir: The directory into which to write the studies with data dictionaries.
     :param mds_metadata_endpoint: The Platform MDS endpoint to use.
+    :param mds_limit: The maximum number of studies to download from the MDS. TODO: add support for queries beyond the limit.
     :return: A dictionary of all the studies, with the study ID as keys.
     """
 
@@ -90,12 +93,15 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
     # (which we store in metadata_ids) and filter out the data dictionary identifiers we've seen before.
     #
     # TODO: extend this so it can function even if there are more than mds_limit data dictionaries.
-    result = requests.get(mds_metadata_endpoint, params={
-        'limit': mds_limit,
-    })
-    if not result.ok:
-        raise RuntimeError(f'Could not retrieve metadata list: {result}')
-    metadata_ids = result.json()
+    metadata_ids = []
+    for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
+        result = requests.get(mds_metadata_endpoint, params={
+            '_guid_type': heal_study_guid_type,
+            'limit': mds_limit,
+        })
+        if not result.ok:
+            raise RuntimeError(f'Could not retrieve metadata list for guid_type {heal_study_guid_type}: {result}')
+        metadata_ids.extend(result.json())
     study_ids = list(set(metadata_ids) - set(datadict_ids))
 
     # Download all the studies. This allows us to identify which study each data dictionary is connected to, and
@@ -238,20 +244,22 @@ def download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, 
         logging.debug(f"Wrote data dictionary to {dd_id_json_path}.json")
 
     if len(data_dict_ids_not_within_studies) > 0:
-        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)}are present in the Platform "
+        logging.warning(f"Some data dictionaries ({len(data_dict_ids_not_within_studies)} are present in the Platform "
                         f"MDS, but aren't associated with studies: {data_dict_ids_not_within_studies}")
 
     # Return the list of studies and the studies with data dictionaries.
     return study_ids, data_dict_ids_within_studies
 
 
-def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
+def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_for_hdpid = None, research_network_name_for_hdpid = None):
     """
     Generate dbGaP files from data dictionaries containing
 
     :param dbgap_dir: The dbGaP directory into which we write the dbGaP files.
     :param studies_with_data_dicts_dir: The directory that contains studies containing data dictionaries.
         (This should work for the data_dicts directory too, but then we have no way of linking them to studies.)
+    :param subdirectory_for_hdpid: A function that -- given an HDP ID -- returns the subdirectory name to put it into.
+    :param research_network_name_for_hdpid: A function that -- given an HDP ID -- returns the research network name for that HDPID.
     :return: The list of dbGaP files generated.
     """
 
@@ -314,10 +322,23 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
             data_table.set('study_description', study_description)
 
         # Determine the data_table study_id from the internal HEAL Data Platform (HDP) identifier.
+        study_id = None
         if '_hdp_uid' in study['gen3_discovery']:
-            data_table.set('study_id', HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid'])
+            study_id = HDP_ID_PREFIX + study['gen3_discovery']['_hdp_uid']
+            data_table.set('study_id', study_id)
         else:
             logging.warning(f"No HDP ID found in data dictionary file {file_path}")
+
+        # If there is a research program in gen3_discovery, include it here.
+        if 'research_program' in study['gen3_discovery'] and study['gen3_discovery']['research_program'] != "":
+            research_program = study['gen3_discovery']['research_program']
+            data_table.set('research_program', research_program)
+
+        # Look up and store the research_network_name if we have one.
+        if research_network_name_for_hdpid:
+            research_network_name = research_network_name_for_hdpid(study_id)
+            if research_network_name:
+                data_table.set('research_network_name', research_network_name)
 
         # Create a non-standard appl_id field just in case we need it later.
         # This should be fine for now, but there is also a `comments` element that we can
@@ -397,52 +418,57 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
                 # Export the `module` field so that we can look for instruments.
                 # TODO: this is a custom field. Instead of this, we could export each data dictionary as a separate dbGaP
                 # file. Need to check to see what works better for Dug ingest.
-                if 'module' in var_dict:
-                    variable.set('module', var_dict['module'])
-                    variable_entry['module'] = var_dict['module']
+                if 'section' in var_dict:
+                    variable.set('section', var_dict['section'])
+                    variable_entry['section'] = var_dict['section']
 
                 # Add constraints.
+                logging.debug(f"Looking for constraints in {data_dict['@id']} for {data_table.get('study_id')}: {json.dumps(var_dict, indent=2, sort_keys=True)}")
                 if 'constraints' in var_dict:
+                    var_dict_constraints = var_dict['constraints']
+
                     # Check for minimum and maximum constraints.
-                    if 'minimum' in var_dict['constraints']:
+                    if 'minimum' in var_dict_constraints:
                         logical_min = ET.SubElement(variable, 'logical_min')
-                        logical_min.text = str(var_dict['constraints']['minimum'])
-                        variable_entry['logical_min'] = str(var_dict['constraints']['minimum'])
-                    if 'maximum' in var_dict['constraints']:
+                        logical_min.text = str(var_dict_constraints['minimum'])
+                        variable_entry['logical_min'] = str(var_dict_constraints['minimum'])
+                    if 'maximum' in var_dict_constraints:
                         logical_max = ET.SubElement(variable, 'logical_max')
-                        logical_max.text = str(var_dict['constraints']['maximum'])
-                        variable_entry['logical_max'] = str(var_dict['constraints']['maximum'])
+                        logical_max.text = str(var_dict_constraints['maximum'])
+                        variable_entry['logical_max'] = str(var_dict_constraints['maximum'])
 
                     # Determine a type for this variable.
                     typ = var_dict.get('type')
-                    if 'enum' in var_dict['constraints'] and len(var_dict['constraints']['enum']) > 0:
+                    if 'enum' in var_dict_constraints and len(var_dict_constraints['enum']) > 0:
                         typ = 'encoded value'
+                        enum_values = var_dict_constraints['enum']
+                        enum_labels = var_dict.get('enumLabels', {})
+                        encodings = []
+
+                        # In some older data dictionaries, the enumLabels are stored in the `encodings` string.
+                        if 'encodings' in var_dict_constraints and len(enum_labels) == 0:
+                            for pair in var_dict_constraints['encodings'].split('|'):
+                                key, value = pair.split('=')
+                                enum_labels[key.strip()] = value.strip()
+
+                        for key in enum_values:
+                            value_element = ET.SubElement(variable, 'value')
+                            value_element.set('code', key)
+                            try:
+                                value = enum_labels[key]
+                            except KeyError:
+                                logging.warning(f"No enumLabel found for code '{key}' in enumLabels {enum_labels}, using '{key}' as value.")
+                                value = key
+
+                            value_element.text = value
+                            encodings.append(f"{key}={value}")
+
+                        variable_entry['encodings'] = "|".join(encodings)
+
                     if typ:
                         type_element = ET.SubElement(variable, 'type')
                         type_element.text = typ
                         variable_entry['type'] = typ
-
-                # If there are encodings, we need to convert them into values.
-                if 'encodings' in var_dict:
-                    encs = {}
-                    for encoding in re.split("\\s*\\|\\s*", var_dict['encodings']):
-                        m = re.fullmatch("^\\s*(.*?)\\s*=\\s*(.*)\\s*$", encoding)
-                        if not m:
-                            raise RuntimeError(
-                                f"Could not parse encodings {var_dict['encodings']} in data dictionary file {file_path}")
-                        key = m.group(1)
-                        value = m.group(2)
-                        if key in encs:
-                            raise RuntimeError(
-                                f"Duplicate key detected in encodings {var_dict['encodings']} in data dictionary file {file_path}")
-                        encs[key] = value
-
-                    for key, value in encs.items():
-                        value_element = ET.SubElement(variable, 'value')
-                        value_element.set('code', key)
-                        value_element.text = value
-
-                    variable_entry['encodings'] = "||".join(map(lambda x: f"{x[0]}={x[1]}", encs.items()))
 
                 all_variable_index.append(variable_entry)
 
@@ -452,8 +478,18 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
         xml_str = ET.tostring(data_table, encoding='unicode')
         pretty_xml_str = minidom.parseString(xml_str).toprettyxml()
 
+        # Calculate the subdirectory for this study.
+        subdir = None
+        if subdirectory_for_hdpid:
+            subdir = subdirectory_for_hdpid(study_id)
+
+        if subdir:
+            os.makedirs(os.path.join(dbgap_dir, subdir), exist_ok=True)
+            output_xml_filename = os.path.join(dbgap_dir, subdir, data_dict_file.replace('.json', '.xml'))
+        else:
+            output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
+
         # Produce the XML file by changing the .json to .xml.
-        output_xml_filename = os.path.join(dbgap_dir, data_dict_file.replace('.json', '.xml'))
         with open(output_xml_filename, 'w') as f:
             f.write(pretty_xml_str)
         logging.info(f"Wrote {data_table} (containing {total_variable_count} variables from {count_data_dictionaries} data dictionaries) to {output_xml_filename}")
@@ -464,7 +500,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir):
     # Write a full variable index to the output XML filename directory.
     variable_index_filename = os.path.join(dbgap_dir, 'variable_index.csv')
     with open(variable_index_filename, 'w') as f:
-        header = ['study_id', 'dd_id', 'name', 'module', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
+        header = ['study_id', 'dd_id', 'name', 'section', 'title', 'description', 'type', 'encodings', 'logical_min', 'logical_max']
 
         csv_writer = csv.DictWriter(f, fieldnames=header)
         csv_writer.writeheader()
@@ -539,6 +575,12 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file,
     '--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
     help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
 @click.option(
+    '--hdp-to-study-type-mappings-csv',
+    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help='The CSV file that maps HDP study IDs to HEAL study types.')
+@click.option(
     '--limit', default=MDS_DEFAULT_LIMIT,
     help='The maximum number of entries to retrieve from the Platform '
     'MDS. Note that some MDS instances have their own built-in '
@@ -548,9 +590,11 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file,
     '--use-cached/--no-use-cached', default=False,
     help='Just use files already on disk, do not download any new'
     'data from platform. Used for testing.')
-@click.option('--kgx-file', type=click.File('w'), default=None,
-              required=False, help="Optional KGX output file")
-def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit,
+@click.option(
+    '--kgx-file', type=click.File('w'), default=None,
+    required=False, help="Optional KGX output file")
+def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint,
+                                     hdp_to_study_type_mappings_csv, limit,
                                      use_cached, kgx_file):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
@@ -568,6 +612,8 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit,
     build code that could be quickly rewritten for other MDS schemas.
 
     :param output: The output directory, which should not exist when the script is run.
+    :param mds_metadata_endpoint: The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata
+    :param limit: The maximum number of entries to retrieve from the Platform MDS. Note that some MDS instances have their own built-in limit; if you hit that limit, you will need to update the code to support offsets.
     """
 
     # Don't allow the program to run if the output directory already exists.
@@ -576,6 +622,17 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit,
             f"To ensure that existing data is not partially overwritten, "
             f"the specified output directory ({output}) must not exist.")
         exit(1)
+
+    # Load the HDP to HEAL Study Type CSV file.
+    hdp_to_study_type_mappings_csv_filename = click.format_filename(hdp_to_study_type_mappings_csv)
+    hdp_to_study_type_mappings = {}
+    with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
+        mappings_reader = csv.DictReader(mappingsf)
+        for mapping in mappings_reader:
+            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
+                'research_network': mapping['Research Network Name'],
+                'study_type': mapping['HEAL Study Type'],
+            }
 
     # Create the output directory.
     os.makedirs(output, exist_ok=True)
@@ -598,14 +655,15 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, limit,
     dbgap_dir = os.path.join(output, 'dbGaPs')
     os.makedirs(dbgap_dir, exist_ok=True)
 
-    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir)
-    logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest "
-                 f"in {dbgap_dir}.")
+    dbgap_filenames = generate_dbgap_files(
+        dbgap_dir, studies_with_data_dicts_dir,
+        lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['study_type'],
+        lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
+    logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
 
     if kgx_file:
         generate_kgx_from_studies_files(studies_dir, kgx_file,
                                         mds_metadata_endpoint)
-
 
 # Run get_heal_platform_mds_data_dicts() if not used as a library.
 if __name__ == "__main__":
