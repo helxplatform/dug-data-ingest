@@ -19,7 +19,7 @@ rm -rf $DATA_DIR/*
 mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt
+python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal --kgx-file $DATA_DIR/heal/heal_studies_kgx.json 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
 
 # Step 2.1. Copy the errors and warnings into a separate file.
 grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt > $DATA_DIR/logs/errors.txt
