@@ -43,6 +43,7 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
 rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Studies" "lakefs:heal-mds-studies/main/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/heal_studies_kgx.json" "lakefs:heal-mds-studies/kgx/" $RCLONE_FLAGS
 rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-research-networks/main/" $RCLONE_FLAGS
 
 # Step 4. Upload logs with RClone.
