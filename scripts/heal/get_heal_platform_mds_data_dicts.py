@@ -20,6 +20,7 @@ import xml.dom.minidom as minidom
 
 # Some defaults.
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
+PUBLIC_MDS_ENDPOINT = 'https://healdata.org/portal/discovery'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
 HEAL_STUDY_GUID_TYPES = [
@@ -511,7 +512,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
 
     return dbgap_files_generated
 
-def make_study_kgx_node(gen3_discovery, mds_metadata_endpoint):
+def make_study_kgx_node(gen3_discovery):
     """Generate a kgx-style node dict from the Gen3 study info JSON"""
     # Pull these two sub-dicts out for easier reference
     study_metadata = gen3_discovery.get('study_metadata', {})
@@ -522,13 +523,13 @@ def make_study_kgx_node(gen3_discovery, mds_metadata_endpoint):
     metadata_location = gen3_discovery.get('metadata_location', {})
     study_id = gen3_discovery['_hdp_uid']
     node = {
-        "id": study_id,
-        "name": gen3_discovery['project_title'],
+        "id": HDP_ID_PREFIX + study_id,
+        "name": gen3_discovery.get('project_title', ""),
         "categories": [
             "biolink:Study"
         ],
         "description" : minimal_info.get('study_description', ""),
-        "iri": mds_metadata_endpoint + "/" + study_id,
+        "iri": PUBLIC_MDS_ENDPOINT + "/" + study_id,
         "abstract": gen3_discovery.get("study_description_summary", ""),
         "archive_date": gen3_discovery.get("archive_date", ""),
     }
@@ -543,8 +544,7 @@ def make_kgx(nodes, edges):
 
     return kgx
 
-def generate_kgx_from_studies_files(studies_dir, kgx_file,
-                                    mds_metadata_endpoint):
+def generate_kgx_from_studies_files(studies_dir, kgx_file):
     """Read SLMD files from the studies_dir, write out kgx_file
 
     Study level metadata kgx file generation uses the cached files in the
@@ -553,7 +553,10 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file,
     """
     nodes = []
     edges = []
+    study_files = glob.glob(os.path.join(studies_dir, '*.json'))
+    logging.info("Found %d study files in %s", len(study_files), studies_dir)
     for study_file in glob.glob(f'{studies_dir}/*.json'):
+        logging.info("Creating kgx node from study file %s", study_file)
         with open(study_file, 'rt') as sf:
             study = json.load(sf)
         gen3_discovery = study.get('gen3_discovery', None)
@@ -561,8 +564,7 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file,
         if not gen3_discovery:
             continue
 
-        nodes.append(make_study_kgx_node(gen3_discovery,
-                                         mds_metadata_endpoint))
+        nodes.append(make_study_kgx_node(gen3_discovery))
 
     logging.info("Writing out %d kgx nodes", len(nodes))
     json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
@@ -590,12 +592,9 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file,
     '--use-cached/--no-use-cached', default=False,
     help='Just use files already on disk, do not download any new'
     'data from platform. Used for testing.')
-@click.option(
-    '--kgx-file', type=click.File('w'), default=None,
-    required=False, help="Optional KGX output file")
 def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint,
                                      hdp_to_study_type_mappings_csv, limit,
-                                     use_cached, kgx_file):
+                                     use_cached):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
     which at the moment is the dbGaP XML format (as described in https://ftp.ncbi.nlm.nih.gov/dbgap/dtd/).
@@ -645,8 +644,13 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint,
     os.makedirs(data_dicts_dir, exist_ok=True)
     studies_with_data_dicts_dir = os.path.join(output, 'studies_with_data_dicts')
     os.makedirs(studies_with_data_dicts_dir, exist_ok=True)
+    kgx_dir = os.path.join(output, 'studies_kgx')
+    os.makedirs(kgx_dir, exist_ok=True)
 
-    if not use_cached:
+    if use_cached:
+        logging.warning("New data dictionaries will NOT be downloaded, "
+                        "as we are running in `--use-cached` mode.")
+    else:
         download_from_mds(studies_dir, data_dicts_dir,
                           studies_with_data_dicts_dir, mds_metadata_endpoint,
                           limit)
@@ -661,9 +665,8 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint,
         lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
     logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
 
-    if kgx_file:
-        generate_kgx_from_studies_files(studies_dir, kgx_file,
-                                        mds_metadata_endpoint)
+    with open(os.path.join(kgx_dir, "heal_studies_kgx.json"), 'w') as kgx_file:
+        generate_kgx_from_studies_files(studies_dir, kgx_file)
 
 # Run get_heal_platform_mds_data_dicts() if not used as a library.
 if __name__ == "__main__":

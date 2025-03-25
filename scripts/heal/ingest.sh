@@ -19,7 +19,8 @@ rm -rf $DATA_DIR/*
 mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal --kgx-file $DATA_DIR/heal/heal_studies_kgx.json 2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.log
+python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal \
+        2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt
 
 # Step 2.1. Copy the errors and warnings into a separate file.
 grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt > $DATA_DIR/logs/errors.txt
@@ -43,7 +44,7 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
 rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
 rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Studies" "lakefs:heal-mds-studies/main/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/heal/heal_studies_kgx.json" "lakefs:heal-mds-studies/kgx/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/studies_kgx/" "lakefs:heal-mds-studies/kgx/" $RCLONE_FLAGS
 rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-research-networks/main/" $RCLONE_FLAGS
 
 # Step 4. Upload logs with RClone.
