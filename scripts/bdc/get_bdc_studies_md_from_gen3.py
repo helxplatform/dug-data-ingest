@@ -101,7 +101,7 @@ class Gen3DataProcessor:
                 study_name = ''
                 program_names = []
                 description = ''
-                last_modified = str(datetime.now().date())
+                last_modified = ''#str(datetime.now().date())
                 
                 # Get study info
                 url = urllib.parse.urljoin(base_url, f'/mds/metadata/{study_id}')
@@ -185,11 +185,11 @@ class Gen3DataProcessor:
                     if is_valid:
                         writer.writerow(row)
                         valid_studies += 1
-                        study_id = f"{row['Accession']}{row.get('Consent', '')}"
+                        study_id = f"{row['Accession']}.{row.get('Consent', '')}"
                         valid_study_details.append(study_id)
                     else:
                         skipped_studies += 1
-                        study_id = f"{row['Accession']}{row.get('Consent', '')}"
+                        study_id = f"{row['Accession']}.{row.get('Consent', '')}"
                         skipped_details.append(f"Study {study_id}: {invalid_reason}")
             
             # Write summary
