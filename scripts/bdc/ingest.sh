@@ -40,7 +40,7 @@ log "Starting pipeline..."
 
 # Step 1: PicSure data extraction
 log "Extracting PicSure data..."
-#python get_bdc_studies_md_from_picsure.py --output-dir "$PICSURE_OUTPUT_PATH"
+python get_bdc_studies_md_from_picsure.py --output-dir "$PICSURE_OUTPUT_PATH"
 
 # Step 1.1 Find PicSure data file
 sleep 1
@@ -49,7 +49,7 @@ PICSURE_DATA_FILE=$(find "$PICSURE_OUTPUT_PATH" -name "cleaned_pic_sure_data*.cs
 
 # Step 2: Gen3 data extraction
 log "Extracting Gen3 data..."
-#python get_bdc_studies_md_from_gen3.py --output-dir "$GEN3_OUTPUT_PATH"
+python get_bdc_studies_md_from_gen3.py --output-dir "$GEN3_OUTPUT_PATH"
 
 
 # Step 2.1 Find Gen3 data file
@@ -59,11 +59,10 @@ GEN3_DATA_FILE=$(find "$GEN3_OUTPUT_PATH" -name "gen3_studies_filtered*.csv" | s
 
 # Step 3: XML generation
 log "Running dbGaP download with XML generation fallback..."
-#python run_dbgap_xml_gen_fallback.py --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE"
+python run_dbgap_xml_gen_fallback.py --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE"
 
 # Step 4: Upload to LakeFS
 log "Uploading dbGaP XML files to LakeFS using Rclone..."
-<<'COMMENT'
 # Set up RClone environment variables
 export RCLONE_CONFIG_LAKEFS_TYPE=s3
 export RCLONE_CONFIG_LAKEFS_PROVIDER=Other
@@ -131,7 +130,7 @@ done
 log "Uploading metadata directories to LakeFS..."
 sync_dir_to_lakefs "$PICSURE_OUTPUT_PATH" "$LAKEFS_REPOSITORY" "main" "ingest-logs/picsure_md"
 sync_dir_to_lakefs "$GEN3_OUTPUT_PATH" "$LAKEFS_REPOSITORY" "main" "ingest-logs/gen3_md"
-COMMENT
+
 log "LakeFS upload completed at $(date)"
 
 
