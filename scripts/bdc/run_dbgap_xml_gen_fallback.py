@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
 Script for downloading dbGaP data dictionaries with XML generation fallback.
-Handles cases where studies are not found on dbGaP by gracefully falling back 
-to XML generation via run_xml_generator.
 """
-
 import os
 import sys
 import shutil
@@ -13,14 +10,12 @@ import pandas as pd
 import argparse
 from datetime import datetime
 from get_dbgap_data_dicts import download_dbgap_study
-# Import the XML generator functionality directly
 from xml_generator import run_xml_generation
 from xml_utils import (
     generate_xml_for_study_safe,
     setup_logging_safe
 )
 
-# Configuration with defaults (can be overridden via command line)
 DEFAULT_CONFIG = {
     "GEN3_CSV": "/path/to/gen3_studies_filtered.csv",
     "PICSURE_CSV": "/path/to/cleaned_pic_sure_data.csv",
@@ -34,24 +29,16 @@ def setup_config():
     parser = argparse.ArgumentParser(
         description='Download dbGaP data dictionaries with XML generation fallback'
     )
-
-    # File path arguments
     parser.add_argument('--gen3-csv', help='Path to Gen3 CSV file (filtered)')
     parser.add_argument('--picsure-csv', help='Path to PicSure CSV file')
     parser.add_argument('--output-dir', help='Base output directory')
-    
-    # Processing arguments
     parser.add_argument('--study', help='Process a single study (accession ID)')
     parser.add_argument('--always-generate', action='store_true', 
                         help='Always use XML generation (skip dbGaP download attempts)')
     
-    # Parse arguments
     args = parser.parse_args()
-    
-    # Create config dictionary
     config = DEFAULT_CONFIG.copy()
     
-    # Override with environment variables if set
     if os.environ.get("GEN3_CSV_PATH"):
         config["GEN3_CSV"] = os.environ.get("GEN3_CSV_PATH")
     if os.environ.get("PICSURE_CSV_PATH"):
@@ -59,7 +46,6 @@ def setup_config():
     if os.environ.get("OUTPUT_DIR_PATH"):
         config["OUTPUT_DIR"] = os.environ.get("OUTPUT_DIR_PATH")
     
-    # Override with command line args if provided
     if args.gen3_csv:
         config["GEN3_CSV"] = args.gen3_csv
     if args.picsure_csv:
@@ -67,7 +53,6 @@ def setup_config():
     if args.output_dir:
         config["OUTPUT_DIR"] = args.output_dir
     
-    # Add processing options
     config["SINGLE_STUDY"] = args.study
     config["ALWAYS_GENERATE"] = args.always_generate
     
@@ -88,15 +73,39 @@ def create_output_directory(base_dir):
     os.makedirs(base_dir, exist_ok=True)
     return base_dir
 
-def write_summary(timestamp_dir, summary_df):
-    # Calculate statistics
+def write_summary(timestamp_dir, summary_df, config):
     total_studies = len(summary_df)
     successful = summary_df[summary_df['status'] == 'SUCCESS']
     downloaded = summary_df[summary_df['method'] == 'dbGaP_download']
     generated = summary_df[summary_df['method'] == 'XML_generator']
     failed = summary_df[summary_df['status'] == 'FAILED']
     
-    # Create summary content
+    # Check overlap between Gen3 and PicSure
+    try:
+        gen3_df = pd.read_csv(config["GEN3_CSV"])
+        pic_df = pd.read_csv(config["PICSURE_CSV"])
+        
+        # Extract study IDs from Gen3
+        if 'study_id' not in gen3_df.columns:
+            gen3_df['study_id'] = gen3_df['Accession'].str.split('.').str[0]
+        gen3_ids = set(gen3_df['study_id'].unique())
+        
+        # Extract study IDs from PicSure (assuming a column contains study IDs)
+        pic_ids = set()
+        for col in pic_df.columns:
+            for val in pic_df[col].dropna().astype(str):
+                # Look for patterns like phs000xxx
+                if val.startswith('phs'):
+                    pic_ids.add(val.split('.')[0])
+        
+        # Find overlap
+        overlap_ids = gen3_ids.intersection(pic_ids)
+        overlap_count = len(overlap_ids)
+    except Exception as e:
+        logging.warning(f"Could not determine Gen3-PicSure overlap: {str(e)}")
+        overlap_count = "unknown"
+        overlap_ids = []
+    
     summary_content = [
         "\n" + "="*50,
         "PROCESSING SUMMARY",
@@ -104,18 +113,13 @@ def write_summary(timestamp_dir, summary_df):
         f"Total studies processed: {total_studies}"
     ]
     
-    if total_studies > 0:
-        success_rate = len(successful)/total_studies*100 if total_studies > 0 else 0
-        download_rate = len(downloaded)/total_studies*100 if total_studies > 0 else 0  
-        generated_rate = len(generated)/total_studies*100 if total_studies > 0 else 0
-        failure_rate = len(failed)/total_studies*100 if total_studies > 0 else 0
-        
-        summary_content.extend([
-            f"Successfully processed: {len(successful)} ({success_rate:.1f}%)",
-            f"  - Downloaded from dbGaP: {len(downloaded)} ({download_rate:.1f}%)",
-            f"  - Generated with XML fallback: {len(generated)} ({generated_rate:.1f}%)",
-            f"Failed: {len(failed)} ({failure_rate:.1f}%)"
-        ])
+    summary_content.extend([
+        f"Successfully processed: {len(successful)}",
+        f"  - Downloaded from dbGaP: {len(downloaded)}",
+        f"  - Generated with XML fallback: {len(generated)}",
+        f"Failed: {len(failed)}",
+        f"Studies in both Gen3 and PicSure: {overlap_count}"
+    ])
     
     if not downloaded.empty:
         summary_content.append("\nStudies downloaded from dbGaP:")
@@ -138,7 +142,12 @@ def write_summary(timestamp_dir, summary_df):
                 f"  {i}. {study['study_id']} ({study['accession_id']}) - Reason: {study['details']}"
             )
     
-    # Write to a separate summary file
+    # Add overlap IDs if available
+    if overlap_ids and len(overlap_ids) > 0:
+        summary_content.append("\nStudies found in both Gen3 and PicSure:")
+        overlap_list = sorted(list(overlap_ids))
+        summary_content.append(f"  {'\t'.join(overlap_list)}")
+    
     summary_txt_path = os.path.join(timestamp_dir, 'processing_summary.txt')
     with open(summary_txt_path, 'w') as f:
         for line in summary_content:
@@ -149,21 +158,18 @@ def write_summary(timestamp_dir, summary_df):
     return summary_txt_path
 
 def get_program_dir(gen3_metadata):
-    # Extract program from metadata
     if isinstance(gen3_metadata, pd.Series):
         program = gen3_metadata.get('Program', '')
     else:
         program = gen3_metadata.get('Program', '')
     
-    # Clean program name for directory use
     if not program or pd.isna(program):
         program = 'unknown_program'
     else:
         # Handle multi-program case (pipe separated in Gen3)
         if '|' in program:
-            program = program.split('|')[0]  # Use first program
+            program = program.split('|')[0]
         
-        # Clean program name for directory use
         program = program.strip().replace(' ', '_').replace('/', '_').lower()
     
     return program
@@ -184,9 +190,7 @@ def cleanup_empty_directory(directory):
         logging.warning(f"Failed to clean up directory {directory}: {str(e)}")
 
 def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df):
-    """Process a single study with download attempt and fallback"""
-    process_msg = f"\nProcessing study: {study_id} (dbGaP: {dbgap_id})"
-    logging.info(process_msg)
+    logging.info(f"\nProcessing study: {study_id} (dbGaP: {dbgap_id})")
     
     # Get study row from Gen3 metadata to extract program
     try:
@@ -195,11 +199,9 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         study_row = gen3_df[gen3_df['study_id'] == study_id].iloc[0]
         program_name = get_program_dir(study_row)
         
-        # Create program directory
         program_dir = os.path.join(output_dir, program_name)
         os.makedirs(program_dir, exist_ok=True)
         
-        # Update study directory to be within program directory
         study_dir = os.path.join(program_dir, dbgap_id)
     except (IndexError, KeyError) as e:
         logging.warning(f"Could not determine program for study {study_id}: {str(e)}")
@@ -209,7 +211,6 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         os.makedirs(program_dir, exist_ok=True)
         study_dir = os.path.join(program_dir, dbgap_id)
     
-    # If always generate is set, skip download attempt
     if config["ALWAYS_GENERATE"]:
         logging.info("Skipping dbGaP download attempt (--always-generate flag set)")
         success = fallback_to_xml_generation(
@@ -222,10 +223,8 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         method = 'XML_generator' if success else 'XML_generation_failed'
         details = 'always_generate_flag' if success else 'generation_failed'
         
-        # Clean up empty directories if operation failed
         if not success:
             cleanup_empty_directory(study_dir)
-            # Also check if program directory is now empty
             cleanup_empty_directory(program_dir)
         
         return pd.DataFrame([{
@@ -237,7 +236,6 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
             'program': program_name
         }])
     
-    # Try to download from dbGaP
     try:
         logging.info(f"Attempting to download from dbGaP...")
         
@@ -269,10 +267,8 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
             method = 'XML_generator' if success else 'both_methods_failed'
             details = 'download_empty' if success else 'generation_failed_after_download_empty'
             
-            # Clean up empty directories if both methods failed
             if not success:
                 cleanup_empty_directory(study_dir)
-                # Also check if program directory is now empty
                 cleanup_empty_directory(program_dir)
             
             return pd.DataFrame([{
@@ -288,11 +284,9 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         error_msg = f"Error downloading {dbgap_id}: {str(e)}"
         logging.error(error_msg)
         
-        # Check for specific error indicating study not found (if available in API)
         not_found = "not found" in str(e).lower() or "404" in str(e)
         reason = "not_found" if not_found else "download_exception"
         
-        # Fallback to XML generation
         success = fallback_to_xml_generation(
             study_id, dbgap_id, study_dir, 
             config["PICSURE_CSV"], config["GEN3_CSV"], 
@@ -303,10 +297,8 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         method = 'XML_generator' if success else 'both_methods_failed'
         details = reason if success else f'generation_failed_after_{reason}'
         
-        # Clean up empty directories if both methods failed
         if not success:
             cleanup_empty_directory(study_dir)
-            # Also check if program directory is now empty
             cleanup_empty_directory(program_dir)
         
         return pd.DataFrame([{
@@ -320,8 +312,13 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
 
 def fallback_to_xml_generation(study_id, dbgap_id, study_dir, picsure_csv, gen3_csv, reason="not_found"):
     logging.info(f"Falling back to XML generation for {dbgap_id} (Reason: {reason})...")
+    # Save original logging handlers
+    original_handlers = list(logging.getLogger().handlers)
     
-    # Clean any partial files if they exist
+    # Force flush logs
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+    
     if os.path.exists(study_dir):
         for f in os.listdir(study_dir):
             try:
@@ -331,7 +328,6 @@ def fallback_to_xml_generation(study_id, dbgap_id, study_dir, picsure_csv, gen3_
     else:
         os.makedirs(study_dir, exist_ok=True)
     
-    # Use the run_xml_generation function directly
     try:
         # Call XML generation with the specific study and output directory
         success = run_xml_generation(
@@ -341,18 +337,35 @@ def fallback_to_xml_generation(study_id, dbgap_id, study_dir, picsure_csv, gen3_
             output_dir=study_dir
         )
         
-        # Check success by looking for files
+        # Restore original logging handlers if needed
+        current_handlers = list(logging.getLogger().handlers)
+        if len(current_handlers) != len(original_handlers):
+            for handler in current_handlers:
+                if handler not in original_handlers:
+                    logging.getLogger().removeHandler(handler)
+            for handler in original_handlers:
+                if handler not in current_handlers:
+                    logging.getLogger().addHandler(handler)
+        
+        logging.info(f"XML generation result for {dbgap_id}: {success}")
+        
+        # Force flush logs again
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+        
         if os.path.exists(study_dir) and os.listdir(study_dir):
-            logging.info(f"Successfully generated XML files for {dbgap_id}")
             return True
         else:
             logging.error(f"XML generation produced no files for {dbgap_id}")
-            # Clean up the empty directory immediately
             cleanup_empty_directory(study_dir)
             return False
     except Exception as e:
-        logging.error(f"Error during XML generation fallback: {str(e)}")
-        # Clean up the directory in case of error
+        logging.error(f"Error during XML generation: {str(e)}")
+        
+        # Force flush logs on error
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+            
         cleanup_empty_directory(study_dir)
         return False
 
@@ -360,21 +373,14 @@ def run_dbgap_download(config):
     """Run the dbGaP download with XML generation fallback for all studies"""
     
     try:
-        # Create base output directory
         os.makedirs(config["OUTPUT_DIR"], exist_ok=True)
-        
-        # Create output directory for this run
         output_dir = create_output_directory(config["OUTPUT_DIR"])
-        
-        # Setup logging
         log_file = setup_logging_safe(output_dir)
         
-        # Create summary dataframe to track results
         summary_df = pd.DataFrame(columns=[
             'study_id', 'accession_id', 'status', 'method', 'details', 'program'
         ])
         
-        # Log initial configuration
         logging.info("Configuration:")
         logging.info(f"  Gen3 CSV (input): {config['GEN3_CSV']}")
         logging.info(f"  PicSure CSV: {config['PICSURE_CSV']}")
@@ -382,13 +388,11 @@ def run_dbgap_download(config):
         if config["ALWAYS_GENERATE"]:
             logging.info("  XML Generation Only Mode: Enabled")
         
-        # Validate input files
         for file_path in [config["GEN3_CSV"], config["PICSURE_CSV"]]:
             if not os.path.exists(file_path):
                 logging.error(f"Input file not found: {file_path}")
                 sys.exit(1)
         
-        # Read Gen3 CSV file
         try:
             gen3_df = read_study_Gen3(config["GEN3_CSV"])
             logging.info(f"Successfully read Gen3 CSV: {len(gen3_df)} studies")
@@ -396,12 +400,10 @@ def run_dbgap_download(config):
             logging.error(f"Error reading Gen3 CSV: {e}")
             sys.exit(1)
         
-        # Process a single study if specified
         if config["SINGLE_STUDY"]:
             dbgap_id = config["SINGLE_STUDY"]
             logging.info(f"Single study mode: {dbgap_id}")
             
-            # Find the study in Gen3 data
             study_base_id = dbgap_id.split('.')[0]
             study_found = False
             
@@ -410,13 +412,11 @@ def run_dbgap_download(config):
                     study_found = True
                     study_name = row.get(config["STUDY_NAME_FIELD"], "")
                     
-                    # Get program name and create directory structure
                     program_name = get_program_dir(row)
                     program_dir = os.path.join(output_dir, program_name)
                     os.makedirs(program_dir, exist_ok=True)
                     study_dir = os.path.join(program_dir, dbgap_id)
                     
-                    # Process the single study
                     result_df = process_study(
                         study_id, dbgap_id, study_name, output_dir, config, summary_df
                     )
@@ -427,12 +427,9 @@ def run_dbgap_download(config):
                 logging.error(f"Study {dbgap_id} not found in Gen3 metadata")
                 sys.exit(1)
         else:
-            # No need to modify this section since process_study handles program directory creation
-            # Process each study in Gen3 file
             for study_id, row in gen3_df.iterrows():
                 study_num = list(gen3_df.index).index(study_id) + 1
                 
-                # Get dbGaP accession ID and study name
                 if config["ACCESSION_FIELD"] not in row or pd.isna(row[config["ACCESSION_FIELD"]]):
                     logging.warning(f"No dbGaP accession ID found for study {study_id}")
                     continue
@@ -442,18 +439,15 @@ def run_dbgap_download(config):
                 
                 logging.info(f"Processing study {study_num}/{len(gen3_df)}: {study_id} (dbGaP: {dbgap_id})")
                 
-                # Process the study with program directory organization
                 result_df = process_study(
                     study_id, dbgap_id, study_name, output_dir, config, summary_df
                 )
                 summary_df = pd.concat([summary_df, result_df], ignore_index=True)
         
-        # Save summary to CSV
         summary_path = os.path.join(output_dir, 'processing_summary.csv')
         summary_df.to_csv(summary_path, index=False)
         
-        # Write detailed summary to log and separate file
-        summary_txt = write_summary(output_dir, summary_df)
+        summary_txt = write_summary(output_dir, summary_df, config)
         
         final_msg = f"\nProcessing complete! Summary saved to: {summary_path} and {summary_txt}"
         logging.info(final_msg)
