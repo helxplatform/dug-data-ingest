@@ -9,6 +9,8 @@
 import csv
 import json
 import os
+import re
+import glob
 import click
 import logging
 import requests
@@ -18,6 +20,7 @@ import xml.dom.minidom as minidom
 
 # Some defaults.
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
+PUBLIC_MDS_ENDPOINT = 'https://healdata.org/portal/discovery'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
 HEAL_STUDY_GUID_TYPES = [
@@ -509,21 +512,89 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
 
     return dbgap_files_generated
 
+def make_study_kgx_node(gen3_discovery):
+    """Generate a kgx-style node dict from the Gen3 study info JSON"""
+    # Pull these two sub-dicts out for easier reference
+    study_metadata = gen3_discovery.get('study_metadata', {})
+    minimal_info = gen3_discovery.get('minimal_info', {})
+    if not minimal_info:
+        # sometimes this shows up in different places
+        minimal_info = study_metadata.get('minimal_info', {})
+    metadata_location = gen3_discovery.get('metadata_location', {})
+    study_id = gen3_discovery['_hdp_uid']
+    node = {
+        "id": HDP_ID_PREFIX + study_id,
+        "name": gen3_discovery.get('project_title', ""),
+        "categories": [
+            "biolink:Study"
+        ],
+        "description" : minimal_info.get('study_description', ""),
+        "iri": PUBLIC_MDS_ENDPOINT + "/" + study_id,
+        "abstract": gen3_discovery.get("study_description_summary", ""),
+        "archive_date": gen3_discovery.get("archive_date", ""),
+    }
+    return node
+
+def make_kgx(nodes, edges):
+    """Very basic kgx format assembler"""
+    kgx = {
+        'nodes': nodes,
+        'edges': edges,
+    }
+
+    return kgx
+
+def generate_kgx_from_studies_files(studies_dir, kgx_file):
+    """Read SLMD files from the studies_dir, write out kgx_file
+
+    Study level metadata kgx file generation uses the cached files in the
+    studies_dir from the previous step in order to generate the kgx output
+    file.
+    """
+    nodes = []
+    edges = []
+    study_files = glob.glob(os.path.join(studies_dir, '*.json'))
+    logging.info("Found %d study files in %s", len(study_files), studies_dir)
+    for study_file in glob.glob(f'{studies_dir}/*.json'):
+        logging.info("Creating kgx node from study file %s", study_file)
+        with open(study_file, 'rt') as sf:
+            study = json.load(sf)
+        gen3_discovery = study.get('gen3_discovery', None)
+
+        if not gen3_discovery:
+            continue
+
+        nodes.append(make_study_kgx_node(gen3_discovery))
+
+    logging.info("Writing out %d kgx nodes", len(nodes))
+    json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
+
 
 # Set up command line arguments.
 @click.command()
 @click.argument('output', type=click.Path(exists=False), required=True)
-@click.option('--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
-              help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
-@click.option('--hdp-to-study-type-mappings-csv',
-              default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
-              type=click.Path(exists=True, file_okay=True, dir_okay=False),
-              help='The CSV file that maps HDP study IDs to HEAL study types.')
-@click.option('--limit', default=MDS_DEFAULT_LIMIT, help='The maximum number of entries to retrieve from the Platform '
-                                                         'MDS. Note that some MDS instances have their own built-in '
-                                                         'limit; if you hit that limit, you will need to update the '
-                                                         'code to support offsets.')
-def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study_type_mappings_csv, limit):
+@click.option(
+    '--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
+    help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
+@click.option(
+    '--hdp-to-study-type-mappings-csv',
+    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help='The CSV file that maps HDP study IDs to HEAL study types.')
+@click.option(
+    '--limit', default=MDS_DEFAULT_LIMIT,
+    help='The maximum number of entries to retrieve from the Platform '
+    'MDS. Note that some MDS instances have their own built-in '
+    'limit; if you hit that limit, you will need to update the '
+    'code to support offsets.')
+@click.option(
+    '--use-cached/--no-use-cached', default=False,
+    help='Just use files already on disk, do not download any new'
+    'data from platform. Used for testing.')
+def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint,
+                                     hdp_to_study_type_mappings_csv, limit,
+                                     use_cached):
     """
     Retrieves files from the HEAL Platform Metadata Service (MDS) in a format that Dug can index,
     which at the moment is the dbGaP XML format (as described in https://ftp.ncbi.nlm.nih.gov/dbgap/dtd/).
@@ -545,9 +616,10 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study
     """
 
     # Don't allow the program to run if the output directory already exists.
-    if os.path.exists(output):
+    if os.path.exists(output) and not use_cached:
         logging.error(
-            f"To ensure that existing data is not partially overwritten, the specified output directory ({output}) must not exist.")
+            f"To ensure that existing data is not partially overwritten, "
+            f"the specified output directory ({output}) must not exist.")
         exit(1)
 
     # Load the HDP to HEAL Study Type CSV file.
@@ -572,15 +644,29 @@ def get_heal_platform_mds_data_dicts(output, mds_metadata_endpoint, hdp_to_study
     os.makedirs(data_dicts_dir, exist_ok=True)
     studies_with_data_dicts_dir = os.path.join(output, 'studies_with_data_dicts')
     os.makedirs(studies_with_data_dicts_dir, exist_ok=True)
-    download_from_mds(studies_dir, data_dicts_dir, studies_with_data_dicts_dir, mds_metadata_endpoint, limit)
+    kgx_dir = os.path.join(output, 'studies_kgx')
+    os.makedirs(kgx_dir, exist_ok=True)
+
+    if use_cached:
+        logging.warning("New data dictionaries will NOT be downloaded, "
+                        "as we are running in `--use-cached` mode.")
+    else:
+        download_from_mds(studies_dir, data_dicts_dir,
+                          studies_with_data_dicts_dir, mds_metadata_endpoint,
+                          limit)
 
     # Generate dbGaP entries from the studies and the data dictionaries.
     dbgap_dir = os.path.join(output, 'dbGaPs')
     os.makedirs(dbgap_dir, exist_ok=True)
 
-    dbgap_filenames = generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['study_type'], lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
+    dbgap_filenames = generate_dbgap_files(
+        dbgap_dir, studies_with_data_dicts_dir,
+        lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['study_type'],
+        lambda hdp_id: hdp_to_study_type_mappings[hdp_id]['research_network'])
     logging.info(f"Generated {len(dbgap_filenames)} dbGaP files for ingest in {dbgap_dir}.")
 
+    with open(os.path.join(kgx_dir, "heal_studies_kgx.json"), 'w') as kgx_file:
+        generate_kgx_from_studies_files(studies_dir, kgx_file)
 
 # Run get_heal_platform_mds_data_dicts() if not used as a library.
 if __name__ == "__main__":
