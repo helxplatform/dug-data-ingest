@@ -512,7 +512,7 @@ def generate_dbgap_files(dbgap_dir, studies_with_data_dicts_dir, subdirectory_fo
 
     return dbgap_files_generated
 
-def make_study_kgx_node(gen3_discovery):
+def make_study_kgx_node(gen3_discovery, nih_reporter):
     """Generate a kgx-style node dict from the Gen3 study info JSON"""
     # Pull these two sub-dicts out for easier reference
     study_metadata = gen3_discovery.get('study_metadata', {})
@@ -530,8 +530,9 @@ def make_study_kgx_node(gen3_discovery):
         ],
         "description" : minimal_info.get('study_description', ""),
         "iri": PUBLIC_MDS_ENDPOINT + "/" + study_id,
-        "abstract": gen3_discovery.get("study_description_summary", ""),
-        "archive_date": gen3_discovery.get("archive_date", ""),
+        "abstract": gen3_discovery.get('study_description_summary', ""),
+        "project_start_date": nih_reporter.get('project_start_date', ""),
+        "project_end_date": nih_reporter.get('project_end_date', ""),
     }
     return node
 
@@ -560,11 +561,12 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file):
         with open(study_file, 'rt') as sf:
             study = json.load(sf)
         gen3_discovery = study.get('gen3_discovery', None)
+        nih_reporter = study.get('nih_reporter', None)
 
-        if not gen3_discovery:
+        if not (gen3_discovery and nih_reporter):
             continue
 
-        nodes.append(make_study_kgx_node(gen3_discovery))
+        nodes.append(make_study_kgx_node(gen3_discovery, nih_reporter))
 
     logging.info("Writing out %d kgx nodes", len(nodes))
     json.dump(make_kgx(nodes, edges), kgx_file, indent=2)
