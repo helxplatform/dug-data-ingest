@@ -10,21 +10,21 @@ SCRIPT_DIR=${HEAL_INGEST_SCRIPT_DIR:-heal}
 
 # A script for ingesting data from HEAL Platform dbGaP XML files into LakeFS.
 START_DATE=$(date)
-echo Started ingest from HEAL Platform to ${DATA_DIR} at ${START_DATE}.
+echo Started ingest from HEAL Platform to "${DATA_DIR}" at "${START_DATE}".
 
 # Step 1. Prepare directories.
 echo Cleaning data directory
-rm -rf $DATA_DIR/*
+rm -rf "$DATA_DIR"/*
 
-mkdir -p $DATA_DIR/logs
+mkdir -p "$DATA_DIR"/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
-python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal \
-	2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt
+python "$SCRIPT_DIR"/get_heal_platform_mds_data_dicts.py "$DATA_DIR"/heal \
+	2>&1 | tee "$DATA_DIR"/logs/get_heal_platform_mds_data_dicts.txt
 
 # Step 2.1. Copy the errors and warnings into a separate file.
-grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt >$DATA_DIR/logs/errors.txt
-grep -i "WARNING" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt >$DATA_DIR/logs/warnings.txt
+grep -i "ERROR" "$DATA_DIR"/logs/get_heal_platform_mds_data_dicts.txt >"$DATA_DIR"/logs/errors.txt
+grep -i "WARNING" "$DATA_DIR"/logs/get_heal_platform_mds_data_dicts.txt >"$DATA_DIR"/logs/warnings.txt
 
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -42,13 +42,13 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # Sync (https://rclone.org/commands/rclone_sync/)
 # --track-renames: If a file exists but has only been renamed, record that on the destination.
 # --no-update-modtime: Don't update the last-modified time if the file is identical.
-rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Studies" "lakefs:heal-mds-studies/main/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/heal/studies_kgx/" "lakefs:heal-mds-kgx/main/studies/" $RCLONE_FLAGS
-rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-research-networks/main/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/heal/dbGaPs/" "lakefs:$LAKEFS_REPOSITORY/main/" "$RCLONE_FLAGS"
+rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Studies" "lakefs:heal-mds-studies/main/" "$RCLONE_FLAGS"
+rclone sync "$DATA_DIR/heal/studies_kgx/" "lakefs:heal-mds-kgx/main/studies/" "$RCLONE_FLAGS"
+rclone sync "$DATA_DIR/heal/dbGaPs/HEAL Research Network" "lakefs:heal-mds-research-networks/main/" "$RCLONE_FLAGS"
 
 # Step 4. Upload logs with RClone.
-rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLAGS
+rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" "$RCLONE_FLAGS"
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \

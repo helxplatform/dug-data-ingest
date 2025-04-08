@@ -11,20 +11,20 @@ DATAROOT="${1:-/data}"
 
 # Step 1. Prepare directory.
 echo Cleaning /data directory
-rm -rf $DATAROOT/*
+rm -rf "$DATAROOT"/*
 
 echo Create log directory.
-mkdir -p $DATAROOT/logs
+mkdir -p "$DATAROOT"/logs
 
 echo Create bdc ouptut directory.
-mkdir -p $DATAROOT/bdc
+mkdir -p "$DATAROOT"/bdc
 
 # Step 1. Download the list of dbGaP IDs from BDC.
-python bdc/get_bdc_studies_from_gen3.py $DATAROOT/bdc_dbgap_ids.csv --kgx-file $DATAROOT/bdc/bdc_studies_kgx.json 2>&1 | tee $DATAROOT/logs/get_bdc_studies_from_gen3.txt
+python bdc/get_bdc_studies_from_gen3.py "$DATAROOT"/bdc_dbgap_ids.csv --kgx-file "$DATAROOT"/bdc/bdc_studies_kgx.json 2>&1 | tee "$DATAROOT"/logs/get_bdc_studies_from_gen3.txt
 
 # Step 2. Download the dbGaP XML files from BDC.
-mkdir -p $DATAROOT/bdc
-python bdc/get_dbgap_data_dicts.py $DATAROOT/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir $DATAROOT/bdc --group-by Program 2>&1 | tee $DATAROOT/logs/get_dbgap_data_dicts.txt
+mkdir -p "$DATAROOT"/bdc
+python bdc/get_dbgap_data_dicts.py "$DATAROOT"/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir "$DATAROOT"/bdc --group-by Program 2>&1 | tee "$DATAROOT"/logs/get_dbgap_data_dicts.txt
 
 # Step 3. Upload the dbGaP XML files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -59,7 +59,7 @@ sync_dir_to_lakefs() {
 	local subdir=$4
 
 	# Sync the local directory to the remote directory.
-	rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" $RCLONE_FLAGS
+	rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" "$RCLONE_FLAGS"
 
 	# Commit the sync.
 	curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
