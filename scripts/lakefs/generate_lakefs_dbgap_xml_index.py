@@ -25,13 +25,13 @@
 # them into ingest scripts to generate before-and-after reports or something.
 import csv
 import json
+import logging
 import xml.etree.ElementTree
 from collections import defaultdict
-import logging
+from dataclasses import dataclass
 
 import click
 from lakefs_spec import LakeFSFileSystem
-from dataclasses import dataclass
 
 # Set up logging.
 logging.basicConfig(level=logging.INFO)

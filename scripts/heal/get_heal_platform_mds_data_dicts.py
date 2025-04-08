@@ -7,16 +7,17 @@
 # If no MDS endpoint is specified, we default to the production endpoint at https://healdata.org/mds/metadata
 #
 import csv
+import glob
 import json
+import logging
 import os
 import re
-import glob
-import click
-import logging
-import requests
-from collections import defaultdict
-import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+
+import click
+import requests
 
 # Some defaults.
 DEFAULT_MDS_ENDPOINT = "https://healdata.org/mds/metadata"

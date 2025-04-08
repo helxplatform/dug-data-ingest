@@ -7,10 +7,10 @@ USAGE:
 The BDC Gen3 instance is hosted at https://gen3.biodatacatalyst.nhlbi.nih.gov/
 """
 
-import os
 import csv
 import json
 import logging
+import os
 import re
 import urllib.parse
 from collections import Counter

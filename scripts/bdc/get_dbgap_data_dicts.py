@@ -4,15 +4,16 @@ get_dbgap_data_dicts.py - Download data dictionaries from dbGaP in a format that
 Based on get_ncpi_data_dicts.py.
 """
 
+import csv
 import logging
 import os
 import shutil
+import xml.etree.ElementTree as ET
 from ftplib import FTP, error_perm, error_temp
-import csv
+from urllib.parse import urljoin
+
 import click
 import requests
-from urllib.parse import urljoin
-import xml.etree.ElementTree as ET
 
 # Default to logging at the INFO level.
 logging.basicConfig(level=logging.INFO)
