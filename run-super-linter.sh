@@ -11,6 +11,7 @@ docker run \
 	-e DEFAULT_BRANCH=main \
 	-e VALIDATE_ALL_CODEBASE=true \
 	-e VALIDATE_GIT_COMMITLINT=false \
+	-e IGNORE_GITIGNORED_FILES=true \
 	-v .:/tmp/lint \
 	--rm \
 	ghcr.io/super-linter/super-linter:latest
