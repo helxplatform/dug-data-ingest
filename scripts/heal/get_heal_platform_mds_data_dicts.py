@@ -564,8 +564,15 @@ def generate_kgx_from_studies_files(studies_dir, kgx_file):
         gen3_discovery = study.get('gen3_discovery', None)
         nih_reporter = study.get('nih_reporter', None)
 
-        if not (gen3_discovery and nih_reporter):
+        # We can't really produce study data without gen3_discovery.
+        if not gen3_discovery:
+            logging.warning(f"No gen3_discovery found in study file {study_file}, skipping.")
             continue
+
+        # We can produce study data without nih_reporter -- we'll only miss the study start/end dates -- so continue.
+        if not nih_reporter:
+            logging.warning(f"No nih_reporter found in study file {study_file}, continuing.")
+            nih_reporter = {}
 
         nodes.append(make_study_kgx_node(gen3_discovery, nih_reporter))
 
