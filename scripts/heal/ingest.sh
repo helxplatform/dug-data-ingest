@@ -20,11 +20,11 @@ mkdir -p $DATA_DIR/logs
 
 # Step 2. Download the list of dbGaP IDs from BDC.
 python $SCRIPT_DIR/get_heal_platform_mds_data_dicts.py $DATA_DIR/heal \
-        2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt
+	2>&1 | tee $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt
 
 # Step 2.1. Copy the errors and warnings into a separate file.
-grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt > $DATA_DIR/logs/errors.txt
-grep -i "WARNING" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt > $DATA_DIR/logs/warnings.txt
+grep -i "ERROR" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt >$DATA_DIR/logs/errors.txt
+grep -i "WARNING" $DATA_DIR/logs/get_heal_platform_mds_data_dicts.txt >$DATA_DIR/logs/warnings.txt
 
 # Step 3. Upload the files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -52,14 +52,14 @@ rclone sync "$DATA_DIR/logs/" "lakefs:$LAKEFS_REPOSITORY/main/logs/" $RCLONE_FLA
 
 # Step 5. Commit these changes. We could do this via lakefs CLI, but it's easier to just do it via curl.
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$LAKEFS_REPOSITORY/branches/main/commits" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\": \"Updated HEAL data dictionaries starting at ${START_DATE}.\"}"
+	-H "Content-Type: application/json" \
+	-d "{\"message\": \"Updated HEAL data dictionaries starting at ${START_DATE}.\"}"
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/heal-mds-studies/branches/main/commits" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\": \"Updated HEAL data dictionaries for HEAL Studies starting at ${START_DATE}.\"}"
+	-H "Content-Type: application/json" \
+	-d "{\"message\": \"Updated HEAL data dictionaries for HEAL Studies starting at ${START_DATE}.\"}"
 curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/heal-mds-research-networks/branches/main/commits" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\": \"Updated HEAL data dictionaries for HEAL Research Networks starting at ${START_DATE}.\"}"
+	-H "Content-Type: application/json" \
+	-d "{\"message\": \"Updated HEAL data dictionaries for HEAL Research Networks starting at ${START_DATE}.\"}"
 
 # Note success.
-echo Downloads complete at `date`.
+echo Downloads complete at $(date).

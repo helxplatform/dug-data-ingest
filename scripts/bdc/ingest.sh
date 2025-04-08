@@ -53,18 +53,18 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # It takes three arguments:
 #   sync_dir_to_lakefs(local_dir, repo_name, branch_name, subdir)
 sync_dir_to_lakefs() {
-  local local_dir=$1
-  local repo_name=$2
-  local branch_name=$3
-  local subdir=$4
+	local local_dir=$1
+	local repo_name=$2
+	local branch_name=$3
+	local subdir=$4
 
-  # Sync the local directory to the remote directory.
-  rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" $RCLONE_FLAGS
+	# Sync the local directory to the remote directory.
+	rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" $RCLONE_FLAGS
 
-  # Commit the sync.
-  curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
-    -H "Content-Type: application/json" \
-    -d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
+	# Commit the sync.
+	curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
+		-H "Content-Type: application/json" \
+		-d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
 }
 
 # Actually sync all the directories.
@@ -84,4 +84,4 @@ sync_dir_to_lakefs "$DATAROOT/bdc/bdc_studies_kgx.json" "bdc-studies-kgx" "main"
 sync_dir_to_lakefs "/data/logs" "bdc-roger" "main" "ingest-logs"
 
 # Report completion.
-echo Downloads complete at `date`.
+echo Downloads complete at $(date).
