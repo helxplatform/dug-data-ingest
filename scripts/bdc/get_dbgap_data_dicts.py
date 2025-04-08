@@ -10,7 +10,6 @@ import os
 import shutil
 import xml.etree.ElementTree as ET
 from ftplib import FTP, error_perm, error_temp
-from urllib.parse import urljoin
 
 import click
 import requests
@@ -122,7 +121,7 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
     #         and if there is, get it.
     try:
         ftp.cwd(study_id_path)
-    except error_temp as e:
+    except error_temp:
         logging.error("FTP session timed out. Reconnecting.")
         ftp = FTP("ftp.ncbi.nlm.nih.gov", timeout=FTP_TIMEOUT)
         ftp.login()

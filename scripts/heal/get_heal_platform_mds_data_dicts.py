@@ -11,7 +11,6 @@ import glob
 import json
 import logging
 import os
-import re
 import xml.dom.minidom as minidom
 import xml.etree.ElementTree as ET
 from collections import defaultdict

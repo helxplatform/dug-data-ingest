@@ -120,7 +120,7 @@ def retrieve_study_info_list(bdc_gen3_base_url):
     # Step 1. Download all the discovery_metadata from the BDC Gen3 Metadata
     # Service (MDS).
     mds_discovery_metadata_url = urllib.parse.urljoin(
-        bdc_gen3_base_url, f"/mds/metadata?_guid_type=discovery_metadata"
+        bdc_gen3_base_url, "/mds/metadata?_guid_type=discovery_metadata"
     )
 
     logging.debug(
@@ -211,7 +211,7 @@ def make_csv_dict_from_study_info(study_info):
     # current date.
     last_modified = str(datetime.now().date())
 
-    if not "gen3_discovery" in study_info:
+    if "gen3_discovery" not in study_info:
         return {}
     gen3_discovery = study_info["gen3_discovery"]
     study_id = gen3_discovery["study_id"]
@@ -368,14 +368,14 @@ def make_kgx_lists(study_info_list):
     edge_list = []
 
     for study_info in study_info_list:
-        if not "gen3_discovery" in study_info:
+        if "gen3_discovery" not in study_info:
             continue
         gen3_discovery = study_info["gen3_discovery"]
         (study_id, consent) = get_id_and_consent(gen3_discovery["study_id"])
         if not consent:
             # Non-dbgap IDs not supported by Dug
             continue
-        if not study_id in study_dict:
+        if study_id not in study_dict:
             study_dict[study_id] = make_study_kgx_node(gen3_discovery, study_id)
         consent_list.append(make_consent_info_dict(gen3_discovery))
         edge_list.append(make_edge_link(study_id, gen3_discovery["study_id"]))
