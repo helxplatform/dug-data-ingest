@@ -531,6 +531,7 @@ def make_study_kgx_node(gen3_discovery, nih_reporter):
         "description" : minimal_info.get('study_description', ""),
         "iri": PUBLIC_MDS_ENDPOINT + "/" + study_id,
         "abstract": gen3_discovery.get('study_description_summary', ""),
+        "archive_date": gen3_discovery.get("archive_date", ""),
         "project_start_date": nih_reporter.get('project_start_date', ""),
         "project_end_date": nih_reporter.get('project_end_date', ""),
     }
