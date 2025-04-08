@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Bash strict mode (minus IFS change, since we're not using arrays).
 set -euo pipefail
@@ -14,7 +14,7 @@ echo Started ingest from HEAL Platform to "${DATA_DIR}" at "${START_DATE}".
 
 # Step 1. Prepare directories.
 echo Cleaning data directory
-rm -rf "$DATA_DIR"/*
+rm -rf "${DATA_DIR:?}"/*
 
 mkdir -p "$DATA_DIR"/logs
 
@@ -62,4 +62,4 @@ curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/reposit
 	-d "{\"message\": \"Updated HEAL data dictionaries for HEAL Research Networks starting at ${START_DATE}.\"}"
 
 # Note success.
-echo Downloads complete at $(date).
+echo "Downloads complete at $(date)."

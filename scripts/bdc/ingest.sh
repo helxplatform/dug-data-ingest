@@ -11,7 +11,7 @@ DATAROOT="${1:-/data}"
 
 # Step 1. Prepare directory.
 echo Cleaning /data directory
-rm -rf "$DATAROOT"/*
+rm -rf "${DATAROOT:?}"/*
 
 echo Create log directory.
 mkdir -p "$DATAROOT"/logs
@@ -36,10 +36,6 @@ export RCLONE_CONFIG_LAKEFS_ENDPOINT="$LAKEFS_HOST"
 export RCLONE_CONFIG_LAKEFS_ACCESS_KEY_ID="$LAKEFS_USERNAME"
 export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
-
-# We would normally put each project into its own LakeFS repository, configurable in
-# this file, but for testing I'm going to put them all into the same repository.
-LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
 RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
@@ -84,4 +80,4 @@ sync_dir_to_lakefs "$DATAROOT/bdc/bdc_studies_kgx.json" "bdc-studies-kgx" "main"
 sync_dir_to_lakefs "/data/logs" "bdc-roger" "main" "ingest-logs"
 
 # Report completion.
-echo Downloads complete at $(date).
+echo "Downloads complete at $(date)."
