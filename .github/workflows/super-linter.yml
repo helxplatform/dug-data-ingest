@@ -7,10 +7,7 @@
 name: Lint codebase
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 jobs:
   run-lint:
     runs-on: ubuntu-latest
