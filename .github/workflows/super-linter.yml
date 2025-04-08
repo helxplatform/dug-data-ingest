@@ -29,5 +29,6 @@ jobs:
         uses: github/super-linter@v4
         env:
           VALIDATE_ALL_CODEBASE: true # If set to false, only files modified in this PR will be linted.
+          VALIDATE_PYTHON_RUFF: true
           DEFAULT_BRANCH: "main"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
