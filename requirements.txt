@@ -6,7 +6,3 @@ requests
 
 # Needed to access LakeFS as a filesystem.
 lakefs-spec~=0.11.1
-
-# LINTERS
-ruff
-shellcheck-py
