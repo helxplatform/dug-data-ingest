@@ -1,0 +1,5 @@
+# Linters
+ruff
+shellcheck-py
+actionlint-py
+
