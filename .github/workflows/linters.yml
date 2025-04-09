@@ -41,6 +41,13 @@ jobs:
 
       - name: Lint codebase
         run: bash run-linters.sh
+  markdownlint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: '**/*.md'
   gitleaks:
     name: Gitleaks (detect secrets)
     runs-on: ubuntu-latest
