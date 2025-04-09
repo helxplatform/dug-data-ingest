@@ -1,0 +1,43 @@
+# Since Dug Data Ingest contains many different types of files, it is valuable to check it with several linters to
+# make sure that all the different files are as clean and readable as possible.
+#
+# To reduce developer aggravation:
+# - This GitHub action won't try to fix anything -- that's up to you, if you want to do it.
+# - This GitHub action will only run on PRs.
+#
+# You can adjust the behavior by modifying this file.
+# For more information, see:
+# https://github.com/github/super-linter
+name: Lint codebase
+
+on:
+  pull_request:
+jobs:
+  run-linters-installed-with-pip:
+    name: Run linters installed with Pip
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      # To report GitHub Actions status checks
+      statuses: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      - name: Install dev requirements
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint codebase
+        run: bash run-linters.sh
