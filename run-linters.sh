@@ -10,13 +10,10 @@
 #		Defaults to '.'
 #
 
-# Set DONT_FIX=" " if FIX
-[ -z "${FIX}" ] && DONT_FIX=" "
-
 # Python linting: Ruff (https://github.com/astral-sh/ruff)
 PYTHON_DIR="${BASEDIR:-.}"
-ruff check --select I --fix ${PYTHON_DIR}
-[ -z "${FIX}" ] && ruff format ${PYTHON_DIR}
+ruff check --select I --fix "${PYTHON_DIR}"
+[ -z "${FIX}" ] && ruff format "${PYTHON_DIR}"
 
 # Shell scripts: Shellcheck (https://github.com/koalaman/shellcheck)
 # You can fix these files by asking shellcheck to generate a diff (`-f diff`) and then piping that to `patch`.
