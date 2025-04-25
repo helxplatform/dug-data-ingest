@@ -11,8 +11,8 @@
 # Requires [jq](https://jqlang.github.io/jq/) to convert the downloaded JSON file into a TSV file.
 
 DUG_INSTANCE=${DUG_INSTANCE:-"https://heal.renci.org"}
-OUTPUT_DIR=reports/
+OUTPUT_DIR=${OUTPUT_DIR:-"$(dirname "$0")/reports"}
 
-mkdir -p ${OUTPUT_DIR}
-wget "$DUG_INSTANCE/search-api/search_program" -O ${OUTPUT_DIR}/list.json
-jq -r '(["collection_id", "collection_name", "collection_action"], (.result | sort_by(.collection_id) | .[] | [.collection_id, .collection_name, .collection_action]) | @tsv)' ${OUTPUT_DIR}/list.json | grep -v '^\tCDE\t$' > ${OUTPUT_DIR}/list.tsv
+mkdir -p "${OUTPUT_DIR}"
+wget "$DUG_INSTANCE/search-api/search_program" -O "${OUTPUT_DIR}/list.json"
+jq -r '(["collection_id", "collection_name", "collection_action"], (.result | sort_by(.collection_id) | .[] | [.collection_id, .collection_name, .collection_action]) | @tsv)' "${OUTPUT_DIR}/list.json" | grep -v '^\tCDE\t$' > "${OUTPUT_DIR}/list.tsv"
