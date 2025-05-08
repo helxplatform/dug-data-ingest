@@ -17,7 +17,7 @@ values.yaml files to choose which ingest you want to set up), but in the future 
    3. `values/*.yaml` corresponding to the Dug Data Ingest you want to set up, such as
       `values/bdc-ingest.yaml` for the BDC ingest.
 
-## Instructions for creating a new Dug ingest.
+## Instructions for creating a new Dug ingest
 1. Create a new directory for your ingest in the scripts directory, e.g. `scripts/babel`.
 2. Add the scripts needed to run an ingest in this directory. We usually have an `ingest.sh` script to run an
    ingest, but you can call it whatever you like.

@@ -4,15 +4,15 @@ get_dbgap_data_dicts.py - Download data dictionaries from dbGaP in a format that
 Based on get_ncpi_data_dicts.py.
 """
 
+import csv
 import logging
 import os
 import shutil
+import xml.etree.ElementTree as ET
 from ftplib import FTP, error_perm, error_temp
-import csv
+
 import click
 import requests
-from urllib.parse import urljoin
-import xml.etree.ElementTree as ET
 
 # Default to logging at the INFO level.
 logging.basicConfig(level=logging.INFO)
@@ -20,21 +20,22 @@ logging.basicConfig(level=logging.INFO)
 # FTP timeout in seconds
 FTP_TIMEOUT = 100
 
-#Update studyname in dbgap_exchange file with new name from Gen3.
+
+# Update studyname in dbgap_exchange file with new name from Gen3.
 def modify_gapexchange_study_name(file_path, new_study_name):
     """to modify StudyNameEntrez in dbgap GapExchange file."""
     try:
         tree = ET.parse(file_path)
         root = tree.getroot()
-        
+
         # Find StudyNameEntrez in Configuration
-        for study in root.findall('.//Study'):
-            config = study.find('Configuration')
+        for study in root.findall(".//Study"):
+            config = study.find("Configuration")
             if config is not None:
-                study_name_elem = config.find('StudyNameEntrez')
+                study_name_elem = config.find("StudyNameEntrez")
                 if study_name_elem is not None:
                     study_name_elem.text = new_study_name
-                    tree.write(file_path, encoding='utf-8', xml_declaration=True)
+                    tree.write(file_path, encoding="utf-8", xml_declaration=True)
                     return True
         return False
     except Exception as e:
@@ -54,13 +55,13 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
 
     count_downloaded_vars = 0
 
-    ftp = FTP('ftp.ncbi.nlm.nih.gov', timeout=FTP_TIMEOUT)
+    ftp = FTP("ftp.ncbi.nlm.nih.gov", timeout=FTP_TIMEOUT)
     ftp.login()
-    ftp.sendcmd('PASV')
-    study_variable = dbgap_accession_id.split('.')[0]
+    ftp.sendcmd("PASV")
+    study_variable = dbgap_accession_id.split(".")[0]
 
     # The output directory already includes the study accession number.
-    local_path = dbgap_output_dir # os.path.join(dbgap_output_dir, dbgap_accession_id)
+    local_path = dbgap_output_dir  # os.path.join(dbgap_output_dir, dbgap_accession_id)
     os.makedirs(local_path, exist_ok=True)
 
     study_id_path = f"/dbgap/studies/{study_variable}/{dbgap_accession_id}"
@@ -69,25 +70,33 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
     try:
         ftp.cwd(f"{study_id_path}/pheno_variable_summaries")
     except error_perm as e1:
-        logging.warning(f"Exception {e1} thrown when trying to access {study_id_path}/pheno_variable_summaries on the dbGaP FTP server.")
+        logging.warning(
+            f"Exception {e1} thrown when trying to access {study_id_path}/pheno_variable_summaries on the dbGaP FTP server."
+        )
         # Delete subdirectory so we don't think it's full
         shutil.rmtree(local_path)
         try:
             files_in_dir = ftp.nlst(study_id_path)
         except error_perm as e2:
-            logging.error(f"dbGaP study accession identifier not found on dbGaP server ({e2}): {study_id_path}")
+            logging.error(
+                f"dbGaP study accession identifier not found on dbGaP server ({e2}): {study_id_path}"
+            )
             return 0
 
-        logging.warning(f"No data dictionaries available for study {dbgap_accession_id}: {files_in_dir}")
+        logging.warning(
+            f"No data dictionaries available for study {dbgap_accession_id}: {files_in_dir}"
+        )
         return 0
 
     ftp_filelist = ftp.nlst(".")
     ftp.quit()
 
     for ftp_filename in ftp_filelist:
-        if 'data_dict' in ftp_filename:
+        if "data_dict" in ftp_filename:
             with open(f"{local_path}/{ftp_filename}", "wb") as data_dict_file:
-                logging.debug(f"Downloading {ftp_filename} to {local_path}/{ftp_filename}")
+                logging.debug(
+                    f"Downloading {ftp_filename} to {local_path}/{ftp_filename}"
+                )
 
                 # ftp.retrbinary() seems to cause this program to crash.
                 # Luckily, dbGaP is also available on HTTP!
@@ -98,34 +107,38 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
                     continue
 
                 data_dict_file.write(response.content)
-                logging.info(f"Downloaded {ftp_filename} to {local_path}/{ftp_filename} in {response.elapsed.microseconds} microseconds.")
+                logging.info(
+                    f"Downloaded {ftp_filename} to {local_path}/{ftp_filename} in {response.elapsed.microseconds} microseconds."
+                )
             count_downloaded_vars += 1
 
     # Sometimes we've timed out on the FTP server by this point. So let's disconnect and reconnect.
-    ftp = FTP('ftp.ncbi.nlm.nih.gov', timeout=FTP_TIMEOUT)
+    ftp = FTP("ftp.ncbi.nlm.nih.gov", timeout=FTP_TIMEOUT)
     ftp.login()
-    ftp.sendcmd('PASV')
+    ftp.sendcmd("PASV")
 
     # Step 2: Check to see if there's a GapExchange file in the parent folder
     #         and if there is, get it.
     try:
         ftp.cwd(study_id_path)
-    except error_temp as e:
+    except error_temp:
         logging.error("FTP session timed out. Reconnecting.")
-        ftp = FTP('ftp.ncbi.nlm.nih.gov', timeout=FTP_TIMEOUT)
+        ftp = FTP("ftp.ncbi.nlm.nih.gov", timeout=FTP_TIMEOUT)
         ftp.login()
-        ftp.sendcmd('PASV')
+        ftp.sendcmd("PASV")
         resp = ftp.cwd(study_id_path)
-        if resp[:1] == '2':
+        if resp[:1] == "2":
             logging.info("command success")
     ftp_filelist = ftp.nlst(".")
     for ftp_filename in ftp_filelist:
-        if 'GapExchange' in ftp_filename:
+        if "GapExchange" in ftp_filename:
             local_file_path = f"{local_path}/{ftp_filename}"
             with open(local_file_path, "wb") as data_dict_file:
                 ftp.retrbinary(f"RETR {ftp_filename}", data_dict_file.write)
-                logging.info(f"Downloaded {ftp_filename} to {local_path}/{ftp_filename}")
-            
+                logging.info(
+                    f"Downloaded {ftp_filename} to {local_path}/{ftp_filename}"
+                )
+
             # Modify study name if provided
             if study_name:
                 if modify_gapexchange_study_name(local_file_path, study_name):
@@ -135,15 +148,46 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
     ftp.quit()
     return count_downloaded_vars
 
+
 @click.command()
-@click.argument('input_file', type=click.File('r'))
-@click.option('--format', help='The format of the input file.', type=click.Choice(['CSV', 'TSV']), default='TSV')
-@click.option('--field', help='The field name containing dbGaP study IDs or accession IDs.', default=['Accession'], type=str, multiple=True)
-@click.option('--outdir', help='The output directory to create and write dbGaP files to.', type=click.Path(file_okay=False, dir_okay=True, exists=False), default='data/dbgap')
-@click.option('--group-by', help='Create subdirectories for the specified fields.', type=str, multiple=True)
-@click.option('--skip', help='dbGaP identifier to skip when downloading.', type=str, multiple=True)
-@click.option('--study-name-field', help='Field containing study names to update in GapExchange files.', default='Study Name', type=str)
-def get_dbgap_data_dicts(input_file, format, field, outdir, group_by, skip, study_name_field):
+@click.argument("input_file", type=click.File("r"))
+@click.option(
+    "--format",
+    help="The format of the input file.",
+    type=click.Choice(["CSV", "TSV"]),
+    default="TSV",
+)
+@click.option(
+    "--field",
+    help="The field name containing dbGaP study IDs or accession IDs.",
+    default=["Accession"],
+    type=str,
+    multiple=True,
+)
+@click.option(
+    "--outdir",
+    help="The output directory to create and write dbGaP files to.",
+    type=click.Path(file_okay=False, dir_okay=True, exists=False),
+    default="data/dbgap",
+)
+@click.option(
+    "--group-by",
+    help="Create subdirectories for the specified fields.",
+    type=str,
+    multiple=True,
+)
+@click.option(
+    "--skip", help="dbGaP identifier to skip when downloading.", type=str, multiple=True
+)
+@click.option(
+    "--study-name-field",
+    help="Field containing study names to update in GapExchange files.",
+    default="Study Name",
+    type=str,
+)
+def get_dbgap_data_dicts(
+    input_file, format, field, outdir, group_by, skip, study_name_field
+):
     """
     Given a TSV or CSV file with a `dbgap_study_id` field, download all dbGaP variables for Dug ingest.
 
@@ -176,17 +220,17 @@ def get_dbgap_data_dicts(input_file, format, field, outdir, group_by, skip, stud
     # We support two dialects:
     #   - "excel": CSV (https://docs.python.org/3/library/csv.html#csv.excel)
     #   - "excel_tab": TSV (https://docs.python.org/3/library/csv.html#csv.excel_tab)
-    if format == 'CSV':
-        dialect = 'excel'
-    elif format == 'TSV':
-        dialect = 'excel-tab'
+    if format == "CSV":
+        dialect = "excel"
+    elif format == "TSV":
+        dialect = "excel-tab"
     else:
         raise RuntimeError(f"Unknown --format specified: {format}")
 
     count_rows = 0
     count_downloaded = 0
     reader = csv.DictReader(input_file, dialect=dialect)
-    for (row_index, row) in enumerate(reader):
+    for row_index, row in enumerate(reader):
         line_num = row_index + 1
         count_rows += 1
 
@@ -194,30 +238,36 @@ def get_dbgap_data_dicts(input_file, format, field, outdir, group_by, skip, stud
         # and only produce an error if every row doesn't have at least one identifier.
         dbgap_ids = set()
         for fname in fields:
-            if fname in row and row[fname] != '':
+            if fname in row and row[fname] != "":
                 dbgap_ids.add(row[fname])
 
         if not dbgap_ids:
-            raise RuntimeError(f"No dbGaP identifiers found in fields {fields} on line {line_num} of input file: {row}")
+            raise RuntimeError(
+                f"No dbGaP identifiers found in fields {fields} on line {line_num} of input file: {row}"
+            )
 
         # Get study name if field exists
-        study_name = row.get(study_name_field, '').strip() if study_name_field in row else None
+        study_name = (
+            row.get(study_name_field, "").strip() if study_name_field in row else None
+        )
 
         # Determine the output directory. If no group-by fields are specified, just use output_dir.
         # If multiple group-by fields are specified, we use them in order.
         output_dir_for_row = output_dir
         for group_name in list(group_by):
-            if group_name in row and row[group_name].strip() != '':
-                if '|' in row[group_name]:
+            if group_name in row and row[group_name].strip() != "":
+                if "|" in row[group_name]:
                     raise RuntimeError(
-                        f"Pipe-separated multiple values in group-by field {group_name} not supported:" +
-                        f"{row[group_name]} (line {line_num})"
+                        f"Pipe-separated multiple values in group-by field {group_name} not supported:"
+                        + f"{row[group_name]} (line {line_num})"
                     )
                 output_dir_for_row = os.path.join(output_dir_for_row, row[group_name])
             else:
-                output_dir_for_row = os.path.join(output_dir_for_row, '__missing__')
+                output_dir_for_row = os.path.join(output_dir_for_row, "__missing__")
 
-        logging.debug(f"Row {line_num} containing dbGaP IDs {dbgap_ids} will be written to {output_dir_for_row}")
+        logging.debug(
+            f"Row {line_num} containing dbGaP IDs {dbgap_ids} will be written to {output_dir_for_row}"
+        )
         os.makedirs(output_dir_for_row, exist_ok=True)
 
         for dbgap_id in sorted(list(dbgap_ids)):
@@ -232,14 +282,22 @@ def get_dbgap_data_dicts(input_file, format, field, outdir, group_by, skip, stud
             if not os.path.exists(dbgap_dir):
                 logging.info(f"Downloading {dbgap_id} to {dbgap_dir}")
                 try:
-                    count_downloaded += download_dbgap_study(dbgap_id, dbgap_dir, study_name)
+                    count_downloaded += download_dbgap_study(
+                        dbgap_id, dbgap_dir, study_name
+                    )
                 except Exception as ex:
-                    logging.error(f"Exception occurred while downloading {dbgap_id} to {dbgap_dir}: {ex}")
+                    logging.error(
+                        f"Exception occurred while downloading {dbgap_id} to {dbgap_dir}: {ex}"
+                    )
                     shutil.rmtree(dbgap_dir, ignore_errors=True)
                     logging.error(f"Deleted {dbgap_dir} as it is probably incomplete.")
-                    logging.error("Re-run this script to ensure that all variables are downloaded.")
+                    logging.error(
+                        "Re-run this script to ensure that all variables are downloaded."
+                    )
 
-    logging.info(f"Downloaded {count_downloaded} data dictionaries from {count_rows} rows in input files.")
+    logging.info(
+        f"Downloaded {count_downloaded} data dictionaries from {count_rows} rows in input files."
+    )
 
 
 if __name__ == "__main__":

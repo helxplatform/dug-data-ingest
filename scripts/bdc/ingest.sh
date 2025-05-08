@@ -11,20 +11,20 @@ DATAROOT="${1:-/data}"
 
 # Step 1. Prepare directory.
 echo Cleaning /data directory
-rm -rf $DATAROOT/*
+rm -rf "${DATAROOT:?}"/*
 
 echo Create log directory.
-mkdir -p $DATAROOT/logs
+mkdir -p "$DATAROOT"/logs
 
 echo Create bdc ouptut directory.
-mkdir -p $DATAROOT/bdc
+mkdir -p "$DATAROOT"/bdc
 
 # Step 1. Download the list of dbGaP IDs from BDC.
-python bdc/get_bdc_studies_from_gen3.py $DATAROOT/bdc_dbgap_ids.csv --kgx-file $DATAROOT/bdc/bdc_studies_kgx.json 2>&1 | tee $DATAROOT/logs/get_bdc_studies_from_gen3.txt
+python bdc/get_bdc_studies_from_gen3.py "$DATAROOT"/bdc_dbgap_ids.csv --kgx-file "$DATAROOT"/bdc/bdc_studies_kgx.json 2>&1 | tee "$DATAROOT"/logs/get_bdc_studies_from_gen3.txt
 
 # Step 2. Download the dbGaP XML files from BDC.
-mkdir -p $DATAROOT/bdc
-python bdc/get_dbgap_data_dicts.py $DATAROOT/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir $DATAROOT/bdc --group-by Program 2>&1 | tee $DATAROOT/logs/get_dbgap_data_dicts.txt
+mkdir -p "$DATAROOT"/bdc
+python bdc/get_dbgap_data_dicts.py "$DATAROOT"/bdc_dbgap_ids.csv --format CSV --field "Accession" --outdir "$DATAROOT"/bdc --group-by Program 2>&1 | tee "$DATAROOT"/logs/get_dbgap_data_dicts.txt
 
 # Step 3. Upload the dbGaP XML files to BDC.
 echo Uploading dbGaP XML files to LakeFS using Rclone.
@@ -36,10 +36,6 @@ export RCLONE_CONFIG_LAKEFS_ENDPOINT="$LAKEFS_HOST"
 export RCLONE_CONFIG_LAKEFS_ACCESS_KEY_ID="$LAKEFS_USERNAME"
 export RCLONE_CONFIG_LAKEFS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 export RCLONE_CONFIG_LAKEFS_NO_CHECK_BUCKET=true
-
-# We would normally put each project into its own LakeFS repository, configurable in
-# this file, but for testing I'm going to put them all into the same repository.
-LAKEFS_REPOSITORY="bdc-test4"
 
 # Sync (https://rclone.org/commands/rclone_sync/)
 RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
@@ -53,18 +49,18 @@ RCLONE_FLAGS="--progress --track-renames --no-update-modtime"
 # It takes three arguments:
 #   sync_dir_to_lakefs(local_dir, repo_name, branch_name, subdir)
 sync_dir_to_lakefs() {
-  local local_dir=$1
-  local repo_name=$2
-  local branch_name=$3
-  local subdir=$4
+	local local_dir=$1
+	local repo_name=$2
+	local branch_name=$3
+	local subdir=$4
 
-  # Sync the local directory to the remote directory.
-  rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" $RCLONE_FLAGS
+	# Sync the local directory to the remote directory.
+	rclone sync "$local_dir" "lakefs:$repo_name/$branch_name/$subdir" "$RCLONE_FLAGS"
 
-  # Commit the sync.
-  curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
-    -H "Content-Type: application/json" \
-    -d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
+	# Commit the sync.
+	curl -X POST -u "$LAKEFS_USERNAME:$LAKEFS_PASSWORD" "$LAKEFS_HOST/api/v1/repositories/$repo_name/branches/$branch_name/commits" \
+		-H "Content-Type: application/json" \
+		-d "{\"message\": \"Updated BDC data dictionaries starting at ${START_DATE}.\"}"
 }
 
 # Actually sync all the directories.
@@ -84,4 +80,4 @@ sync_dir_to_lakefs "$DATAROOT/bdc/bdc_studies_kgx.json" "bdc-studies-kgx" "main"
 sync_dir_to_lakefs "/data/logs" "bdc-roger" "main" "ingest-logs"
 
 # Report completion.
-echo Downloads complete at `date`.
+echo "Downloads complete at $(date)."
