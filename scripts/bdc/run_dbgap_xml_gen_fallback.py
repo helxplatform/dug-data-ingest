@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script for downloading dbGaP data dictionaries with XML generation fallback.
+Script for downloading dbGaP data dictionaries with XML generation fallback to Pic_Sure.
 """
 import os
 import sys
@@ -11,10 +11,7 @@ import argparse
 from datetime import datetime
 from get_dbgap_data_dicts import download_dbgap_study
 from xml_generator import run_xml_generation
-from xml_utils import (
-    generate_xml_for_study_safe,
-    setup_logging_safe
-)
+from xml_utils import setup_logging_safe
 
 DEFAULT_CONFIG = {
     "GEN3_CSV": "/path/to/gen3_studies_filtered.csv",
@@ -30,11 +27,13 @@ def setup_config():
         description='Download dbGaP data dictionaries with XML generation fallback'
     )
     parser.add_argument('--gen3-csv', help='Path to Gen3 CSV file (filtered)')
-    parser.add_argument('--picsure-csv', help='Path to PicSure CSV file')
+    parser.add_argument('--picsure-csv', help='Path to PicSure CSV file (not required if --no-fallback is set)')
     parser.add_argument('--output-dir', help='Base output directory')
     parser.add_argument('--study', help='Process a single study (accession ID)')
     parser.add_argument('--always-generate', action='store_true', 
                         help='Always use XML generation (skip dbGaP download attempts)')
+    parser.add_argument('--no-fallback', action='store_true',
+                        help='Disable XML generation fallback if dbGaP download fails')
     
     args = parser.parse_args()
     config = DEFAULT_CONFIG.copy()
@@ -55,6 +54,11 @@ def setup_config():
     
     config["SINGLE_STUDY"] = args.study
     config["ALWAYS_GENERATE"] = args.always_generate
+    config["NO_FALLBACK"] = args.no_fallback
+    
+    # Validate configuration for conflicting options
+    if config["ALWAYS_GENERATE"] and config["NO_FALLBACK"]:
+        raise ValueError("Cannot use both --always-generate and --no-fallback together")
     
     return config
 
@@ -256,6 +260,18 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         else:
             logging.info(f"Download returned no variables - study likely not found in dbGaP")
             
+            # Check if fallback is disabled
+            if config["NO_FALLBACK"]:
+                logging.info(f"Skipping XML generation fallback (--no-fallback flag set)")
+                return pd.DataFrame([{
+                    'study_id': study_id,
+                    'accession_id': dbgap_id,
+                    'status': 'FAILED',
+                    'method': 'dbGaP_download_failed',
+                    'details': 'download_empty_no_fallback',
+                    'program': program_name
+                }])
+            
             # Fallback to XML generation
             success = fallback_to_xml_generation(
                 study_id, dbgap_id, study_dir, 
@@ -286,6 +302,18 @@ def process_study(study_id, dbgap_id, study_name, output_dir, config, summary_df
         
         not_found = "not found" in str(e).lower() or "404" in str(e)
         reason = "not_found" if not_found else "download_exception"
+        
+        # Check if fallback is disabled
+        if config["NO_FALLBACK"]:
+            logging.info(f"Skipping XML generation fallback (--no-fallback flag set)")
+            return pd.DataFrame([{
+                'study_id': study_id,
+                'accession_id': dbgap_id,
+                'status': 'FAILED',
+                'method': 'dbGaP_download_failed',
+                'details': reason + '_no_fallback',
+                'program': program_name
+            }])
         
         success = fallback_to_xml_generation(
             study_id, dbgap_id, study_dir, 
@@ -383,15 +411,23 @@ def run_dbgap_download(config):
         
         logging.info("Configuration:")
         logging.info(f"  Gen3 CSV (input): {config['GEN3_CSV']}")
-        logging.info(f"  PicSure CSV: {config['PICSURE_CSV']}")
+        if not config["NO_FALLBACK"]:
+            logging.info(f"  PicSure CSV: {config['PICSURE_CSV']}")
         logging.info(f"  Output directory: {output_dir}")
         if config["ALWAYS_GENERATE"]:
             logging.info("  XML Generation Only Mode: Enabled")
+        if config["NO_FALLBACK"]:
+            logging.info("  XML Fallback: Disabled (PicSure CSV not required)")
         
-        for file_path in [config["GEN3_CSV"], config["PICSURE_CSV"]]:
-            if not os.path.exists(file_path):
-                logging.error(f"Input file not found: {file_path}")
-                sys.exit(1)
+        # Always check Gen3 CSV
+        if not os.path.exists(config["GEN3_CSV"]):
+            logging.error(f"Input file not found: {config['GEN3_CSV']}")
+            sys.exit(1)
+            
+        # Only check PicSure CSV if fallback is not disabled
+        if not config["NO_FALLBACK"] and not os.path.exists(config["PICSURE_CSV"]):
+            logging.error(f"Input file not found: {config['PICSURE_CSV']}")
+            sys.exit(1)
         
         try:
             gen3_df = read_study_Gen3(config["GEN3_CSV"])
