@@ -1,3 +1,8 @@
+# This scripts download the medta from Gen3 Meta Data servce.
+# Some of the studies in Gen3 only have PhsID for new studies and acts as placeholder.
+# The studies which do not have Title, decription and other essential field are removed.
+
+
 import csv
 import json
 import logging
@@ -160,7 +165,7 @@ class Gen3DataProcessor:
         return self.raw_file
     
     def filter_studies(self):
-        """Filter studies and create cleaned output"""
+        """Filter studies which have missing information fields"""
         self.filtered_file = os.path.join(self.output_dir, "gen3_studies_filtered.csv")
         self.logger.info(f"Starting study filtering process. Output file: {self.filtered_file}")
         
@@ -199,7 +204,7 @@ class Gen3DataProcessor:
         except Exception as e:
             self.logger.error(f"An error occurred during filtering: {str(e)}")
             raise
-
+    # This will clean the studies and look for the required fields. 
     def validate_study(self, row):
         """Validate if a study has all required fields that are required to xml file"""
         required_fields = ['Accession', 'Consent', 'Study Name', 'Program', 'Description']
