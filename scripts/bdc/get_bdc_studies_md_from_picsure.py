@@ -121,7 +121,7 @@ def extract_picsure_data(output_dir, token=None):
         print(f"An error occurred. Please check the log file for details: {log_file}")
         sys.exit(1)
 
-#Clean picsure csv
+#Clean picsure csv which are having missing values in the required fields
 def process_and_clean_file(file_path, output_dir=None):
     try:
         df = pd.read_csv(file_path)
