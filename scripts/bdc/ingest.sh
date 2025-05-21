@@ -4,15 +4,17 @@
 
 # Usage: export PICSURE_TOKEN,LAKEFS_HOST,LAKEFS_USERNAME,LAKEFS_PASSWORD and LAKEFS_REPOSITORY   && ./ingest.sh [--output-dir DIR]
 
-# Define log function
+
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
 # Set defaults
-OUTPUT_DIR="bdc-metadata-for-ingest"
-# A script for ingesting data from BDC into LakeFS.
 START_DATE=$(date)
+OUTPUT_DIR="bdc_metadata_ingest"
+
+
+# A script for ingesting data from BDC into LakeFS.
 echo "Started ingest from BDC at ${START_DATE}."
 
 # Parse arguments
@@ -59,7 +61,9 @@ GEN3_DATA_FILE=$(find "$GEN3_OUTPUT_PATH" -name "gen3_studies_filtered*.csv" | s
 
 # Step 3: XML generation
 log "Running dbGaP download with XML generation fallback..."
-python run_dbgap_xml_gen_fallback.py --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE"
+python run_dbgap_xml_gen_fallback.py --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" 
+
+
 
 # Step 4: Upload to LakeFS
 log "Uploading dbGaP XML files to LakeFS using Rclone..."
