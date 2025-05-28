@@ -60,7 +60,7 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
     study_variable = dbgap_accession_id.split('.')[0]
 
     # The output directory already includes the study accession number.
-    local_path = dbgap_output_dir # os.path.join(dbgap_output_dir, dbgap_accession_id)
+    local_path = dbgap_output_dir
     os.makedirs(local_path, exist_ok=True)
 
     study_id_path = f"/dbgap/studies/{study_variable}/{dbgap_accession_id}"
