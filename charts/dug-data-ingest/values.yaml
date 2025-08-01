@@ -12,7 +12,7 @@ dataStorage: 200Mi
 
 # LakeFS information.
 lakeFS:
-  host: https://lakefs.apps.renci.org
+  host: http://lakefs.lakefs
   username: TODO # see in values-secret.yaml
   password: TODO # see in values-secret.yaml
 
