@@ -1,0 +1,185 @@
+import logging
+import os
+import requests
+import click
+from typing import List
+from pathlib import Path
+from xml.etree import ElementTree as ET
+import csv
+import json
+from dug import utils as utils
+from _base import DugStudy, DugVariable, DugSection, DugElement
+from pydantic_core import from_json
+
+logger = logging.getLogger('dug')
+
+DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
+PUBLIC_MDS_ENDPOINT = 'https://healdata.org/portal/discovery'
+MDS_DEFAULT_LIMIT = 10000
+HEAL_STUDY_GUID_TYPES = [
+    'discovery_metadata',                   # Fully registered studies.
+    'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
+]
+HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
+
+def get_study_info_from_mds(study_id:str, mds_url:str=None):
+        if not mds_url:
+            mds_url = DEFAULT_MDS_ENDPOINT
+
+        result = requests.get(mds_url + '/' + study_id)
+        if not result.ok:
+            logger.error(f'Could not retrieve study ID {study_id}: {result}')
+            return None
+
+        study_json = result.json()
+
+        ## Get study information from whatever sources and create a DugStudy element
+        gen3_discovery = study_json.get('gen3_discovery', None)
+        nih_reporter = study_json.get('nih_reporter', None)
+        
+        if gen3_discovery is None and nih_reporter is None:
+            return None
+
+        study_metadata = gen3_discovery.get('study_metadata', {})
+        minimal_info = gen3_discovery.get('minimal_info', {})
+        if not minimal_info:
+                # sometimes this shows up in different places
+            minimal_info = study_metadata.get('minimal_info', {})
+        
+        if not nih_reporter:
+            print(f"No nih_reporter found in study file {study_id}, continuing.")
+            nih_reporter = {}
+        
+        abstract = minimal_info.get('study_description', "")
+        description = gen3_discovery.get("study_description_summary", "")
+        abstract = "No Summary Found" if ( abstract is None or (abstract is not None and len(abstract) == 0)) else abstract
+        description = "No Summary Found" if (description is None or (description is not None and len(description) == 0)) else description
+
+        pi_list = []
+        if gen3_discovery is not None and 'investigators_name' in gen3_discovery and len(gen3_discovery['investigators_name']) > 0:
+                pi_list = gen3_discovery['investigators_name']
+        elif study_metadata is not None and 'citation' in study_metadata and 'investigators' in study_metadata['citation']:
+            pi_list = [ " ".join([k['investigator_first_name'], k["investigator_middle_initial"], k["investigator_last_name"]]) for k in study_metadata['citation']['investigators']]
+
+        publication_list = []
+        if study_metadata is not None and ('findings' in study_metadata and 'primary_publications' in study_metadata['findings']):
+            publication_list = study_metadata['findings']['primary_publications']
+
+        study_details = {
+            "id": HDP_ID_PREFIX + study_id,
+            "study_name" : gen3_discovery.get('project_title', ""),
+            "description" : gen3_discovery.get("study_description_summary", ""),
+            "action" : gen3_discovery['doi_url'] if (gen3_discovery is not None and "doi_url" in gen3_discovery and len(gen3_discovery['doi_url']) >0) else (PUBLIC_MDS_ENDPOINT + "/" + study_id), ## TODO: There's a DOI link on MDS as well. Use that when available.
+            "abstract" : minimal_info.get('study_description', ""),
+            "project_start_date" : nih_reporter.get('project_start_date', ""),
+            "project_end_date" : nih_reporter.get('project_end_date', ""),
+            "abstract": abstract,
+            "description": description,
+            "publication_list": publication_list,
+            "pi_list": pi_list,
+            'institution': gen3_discovery['institutions'] if gen3_discovery is not None and 'institutions' in gen3_discovery else '',
+        }
+        return study_details
+
+
+# Set up command line arguments.
+@click.command()
+@click.argument('output', type=click.Path(exists=False), required=True)
+@click.option(
+    '--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
+    help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
+@click.option(
+    '--hdp-to-study-type-mappings-csv',
+    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help='The CSV file that maps HDP study IDs to HEAL study types.')
+@click.option(
+    '--limit', default=MDS_DEFAULT_LIMIT,
+    help='The maximum number of entries to retrieve from the Platform '
+    'MDS. Note that some MDS instances have their own built-in '
+    'limit; if you hit that limit, you will need to update the '
+    'code to support offsets.')
+@click.option(
+    '--use-cached/--no-use-cached', default=False,
+    help='Just use files already on disk, do not download any new'
+    'data from platform. Used for testing.')
+@click.option(
+     '--debug', default=False,
+     help='Run in debug mode.'
+)
+def get_heal_studies(output, mds_metadata_endpoint,
+                                     hdp_to_study_type_mappings_csv, limit,
+                                     use_cached,
+                                     debug):
+    logging.basicConfig(filename= Path(output)/"log.tx", level = logging.DEBUG if debug else logging.INFO)
+    
+    if not mds_metadata_endpoint:
+        mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT
+
+     # Load the HDP to HEAL Study Type CSV file.
+    hdp_to_study_type_mappings_csv_filename = click.format_filename(hdp_to_study_type_mappings_csv)
+    hdp_to_study_type_mappings = {}
+    with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
+        mappings_reader = csv.DictReader(mappingsf)
+        for mapping in mappings_reader:
+            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
+                'research_network': mapping['Research Network Name'],
+                'study_type': mapping['HEAL Study Type'],
+            }
+
+    metadata_ids = []
+    for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
+        result = requests.get(mds_metadata_endpoint, params={
+            '_guid_type': heal_study_guid_type,
+            'limit': MDS_DEFAULT_LIMIT,
+        })
+        if not result.ok:
+            logger.error(f'Could not retrieve metadata list for guid_type {heal_study_guid_type}: {result}')
+            return None
+        metadata_ids.extend(result.json())
+    study_ids = list(metadata_ids)
+    logger.info(f"Getting information for {len(study_ids)} studies from HEAL MDS")
+    
+    studies = []
+    for count, sid in enumerate(study_ids):
+            if count==10:
+                break
+            study_details = get_study_info_from_mds(study_id = sid, mds_url = mds_metadata_endpoint)
+            if study_details is None:
+                logger.debug(f"Metadata for Study {sid} is not available, Skipping!")
+                continue
+            study_type = hdp_to_study_type_mappings[study_details['id']]['study_type'] if study_details['id'] in hdp_to_study_type_mappings else "HEAL Studies"
+            study = DugStudy(
+                        id=study_details['id'],
+                        name=study_details['study_name'],
+                        description=study_details['description'],
+                        program_name_list=[study_type],
+                        parents=[],
+                        action = study_details['action'],
+                        abstract=study_details['abstract'],
+                        publications = study_details['publication_list'],
+                        metadata = {
+                            'Project Start Date':study_details['project_start_date'],
+                            'Project End Date':study_details['project_end_date'],
+                            'Institution': study_details['institution'],
+                            'Investigator/s': study_details['pi_list']
+                            }
+                        )
+            ## Does this Study have any data dictionaries in MDS?
+            ## Grab the data dictionaries
+
+            logger.debug(study)
+            studies.append(study)
+
+    print(f"Processed {len(studies)} studies")
+    study_json = [k.model_dump() for k in studies]
+    with open(Path(output)/f"output.json", "w") as f:
+        json.dump(study_json, f, indent=4)
+    # for k in studies:
+    #     study_json = [k.model_dump()]
+    #     with open(Path(output)/f"output_{k.get_id()}.json", "w") as f:
+    #         json.dump(study_json, f, indent=4)
+
+if __name__ == "__main__":
+    get_heal_studies()
