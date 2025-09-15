@@ -21,7 +21,7 @@ HEAL_STUDY_GUID_TYPES = [
     'discovery_metadata',                   # Fully registered studies.
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
-HDP_ID_PREFIX = 'HEALDATAPLATFORM_'
+HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 
 def translate_data_dictionary_field(field):
     """
@@ -194,7 +194,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type):
     for vlmd_dd in vlmd_dds:
         for variable in vlmd_dd.get('fields', []):
             # print(variable)
-            elem = DugVariable(id=variable['name'],
+            elem = DugVariable(id=study_id+':'+variable['name'],
                               name=variable['name'],
                               description=variable['description'],
                               program_name_list=[study_type],
@@ -282,6 +282,16 @@ def get_heal_studies(output, mds_metadata_endpoint,
             study_type = hdp_to_study_type_mappings[study_details['id']]['study_type'] if study_details['id'] in hdp_to_study_type_mappings else "HEAL Studies"
 
             dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], study_details['id'], study_type)
+            
+            metadata = {}
+            if study_details['project_start_date'] is not None and len(study_details['project_start_date']) > 0:
+                metadata['Project Start Date'] = study_details['project_start_date']
+            if study_details['project_end_date'] is not None and len(study_details['project_end_date']) > 0:
+                metadata['Project End Date'] = study_details['project_end_date']
+            if study_details['institution'] is not None and len(study_details['institution']) > 0:
+                metadata['Institution'] = study_details['institution']
+            if study_details['pi_list'] is not None and len(study_details['pi_list']) > 0:
+                metadata['Investigator/s'] = study_details['pi_list']
 
             study = DugStudy(
                         id=study_details['id'],
@@ -293,12 +303,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         abstract=study_details['abstract'],
                         publications = study_details['publication_list'],
                         variable_list = [k.id for k in dug_variables] if dug_variables is not None else [],
-                        metadata = {
-                            'Project Start Date':study_details['project_start_date'],
-                            'Project End Date':study_details['project_end_date'],
-                            'Institution': study_details['institution'],
-                            'Investigator/s': study_details['pi_list']
-                            }
+                        metadata = metadata
                         )
             logger.debug(study)
             elements = dug_variables.copy()
