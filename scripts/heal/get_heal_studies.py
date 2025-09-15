@@ -200,7 +200,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type):
                               program_name_list=[study_type],
                               parents=[study_id, variable.get('section', '')],
                               data_type=variable.get('type', 'string'),
-                              is_standardized=False
+                              is_cde=False
                               ) ## This would be changed to study id
             if 'constraints' in variable:
                 ## Assuming that variable['constraints'] is a dict, copy over to DugElement's metadata field.
