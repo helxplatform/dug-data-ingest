@@ -1,9 +1,11 @@
 from __future__ import annotations
 import json
-from typing import Union, Callable, Any, Iterable, Dict, List
+from typing import Union, Callable, Any, Iterable, Dict, List, Annotated, Literal
+
+from dug.core.loaders import InputFile
 
 from dug import utils as utils
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, TypeAdapter, computed_field
 
 VARIABLE_TYPE = 'variable'
 STUDY_TYPE = 'study'
@@ -25,11 +27,11 @@ class DugElement(BaseModel):
     parents: List[str] = Field(default_factory=list) # List of parents
     parent_type: str = "" # Every element can have one type of parent. i.e. variable can either belong to study or crf, and then crf can belong to a study and so on. 
     # parent_type variable will indicate which parent type the parents list is made of.
-    # This is to keep simplicity, and 
     concepts: Dict[str, DugConcept] = Field(default_factory=dict)    
     search_terms: List[str] = Field(default_factory=list)
     optional_terms: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    identifiers: List[str] = Field(default_factory=list)
     
     @computed_field
     @property
@@ -68,9 +70,16 @@ class DugElement(BaseModel):
             'metadata': self.metadata,
             'parents': self.parents,
             'programs': self.program_name_list,
-            'identifiers': list(self.concepts.keys()),
+            'identifiers': (self.identifiers if isinstance(self.identifiers, list) else list(self.identifiers.keys()))
+                           + (list(self.concepts.keys()) if self.concepts else []),
         }
         return es_elem
+
+    def get_response_dict(self):
+        response = self.get_searchable_dict()
+        things_to_hide = ['search_terms', 'optional_terms',]
+        return {x: response[x] for x in response if x not in things_to_hide}
+
 
     def get_id(self) -> str:
         return f'{self.id}'
@@ -102,7 +111,7 @@ class DugElement(BaseModel):
 class DugConcept(DugElement):
     # Basic class for holding information about concepts that are used to organize elements
     # All Concepts map to at least one element
-    type: str=CONCEPT_TYPE
+    type: Literal["concept"]=CONCEPT_TYPE
     identifiers: Dict[str, Any] = Field(default_factory=dict)    
     kg_answers: Dict[str, Any] = Field(default_factory=dict)
     concept_type: str=''
@@ -145,21 +154,21 @@ class DugConcept(DugElement):
         return es_conc
 
 class DugVariable(DugElement):
-    type:str=VARIABLE_TYPE
+    type:Literal["variable"]=VARIABLE_TYPE
     data_type:str='text'
-    is_standardized:bool=False
+    is_cde:bool=False
 
     def get_searchable_dict(self):
         # Translate DugConcept into Elastic-Compatible Concept
         es_elem = super().get_searchable_dict()
         es_var = {**es_elem, 
                     'data_type': self.data_type,
-                    'is_cde': self.is_standardized
+                    'is_cde': self.is_cde
                    }
         return es_var
 
 class DugStudy(DugElement):
-    type:str=STUDY_TYPE
+    type:Literal["study"]=STUDY_TYPE
     publications:List[str] = Field(default_factory=list)
     variable_list:List[str] = Field(default_factory=list)
     abstract:str=''
@@ -175,17 +184,24 @@ class DugStudy(DugElement):
         return es_study
 
 class DugSection(DugElement):
-    type:str=SECTION_TYPE
-    is_standardized:bool=False
+    type:Literal["section"]=SECTION_TYPE
+    is_crf:bool=False
     variable_list:List[str] = Field(default_factory=list)
 
     def get_searchable_dict(self):
         es_elem =  super().get_searchable_dict()
         es_section = {**es_elem,
                       'variable_list': self.variable_list,
-                      'is_crf': self.is_standardized
+                      'is_crf': self.is_crf
                     }
         return es_section
  
+Indexable = Union[DugConcept, DugVariable, DugStudy, DugSection]
+Parser = Callable[[Any], Iterable[Indexable]]
+FileParser = Callable[[InputFile], Iterable[Indexable]]
+
+DiscriminatedIndexable = Annotated[Indexable, Field(discriminator="type")]
+DugElementParsedList = TypeAdapter(List[DiscriminatedIndexable])
+
 DugElement.update_forward_refs()
 DugConcept.update_forward_refs()
