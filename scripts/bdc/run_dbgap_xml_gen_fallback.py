@@ -150,7 +150,7 @@ def write_summary(timestamp_dir, summary_df, config):
     if overlap_ids and len(overlap_ids) > 0:
         summary_content.append("\nStudies found in both Gen3 and PicSure:")
         overlap_list = sorted(list(overlap_ids))
-        summary_content.append(f"  {'\t'.join(overlap_list)}")
+        summary_content.append(f" " + '\t'.join(overlap_list))
     
     summary_txt_path = os.path.join(timestamp_dir, 'processing_summary.txt')
     with open(summary_txt_path, 'w') as f:
