@@ -181,8 +181,9 @@ def main():
             output_dir = env_output_path
         else:
             output_dir = os.getcwd()
-    
-    output_path = Path(output_dir) / "picsure_md"
+
+    # Use the output directory as provided
+    output_path = Path(output_dir)
     
     try:
         output_path.mkdir(parents=True, exist_ok=True)
