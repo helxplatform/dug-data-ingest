@@ -12,5 +12,6 @@ pandas
 numpy
 
 # Needed for PicSure API integration.
-PicSureClient
-PicSureBdcAdapter
+git+https://github.com/hms-dbmi/pic-sure-python-client.git
+git+https://github.com/hms-dbmi/pic-sure-python-adapter-hpds.git
+git+https://github.com/hms-dbmi/pic-sure-biodatacatalyst-python-adapter-hpds.git
