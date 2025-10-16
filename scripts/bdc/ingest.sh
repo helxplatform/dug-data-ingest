@@ -40,9 +40,12 @@ export GEN3_OUTPUT_PATH
 
 log "Starting pipeline..."
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Step 1: PicSure data extraction
 log "Extracting PicSure data..."
-python get_bdc_studies_md_from_picsure.py --output-dir "$PICSURE_OUTPUT_PATH"
+python "$SCRIPT_DIR/get_bdc_studies_md_from_picsure.py" --output-dir "$PICSURE_OUTPUT_PATH"
 
 # Step 1.1 Find PicSure data file
 sleep 1
@@ -51,7 +54,7 @@ PICSURE_DATA_FILE=$(find "$PICSURE_OUTPUT_PATH" -name "cleaned_pic_sure_data*.cs
 
 # Step 2: Gen3 data extraction
 log "Extracting Gen3 data..."
-python get_bdc_studies_md_from_gen3.py --output-dir "$GEN3_OUTPUT_PATH"
+python "$SCRIPT_DIR/get_bdc_studies_md_from_gen3.py" --output-dir "$GEN3_OUTPUT_PATH"
 
 
 # Step 2.1 Find Gen3 data file
@@ -61,7 +64,7 @@ GEN3_DATA_FILE=$(find "$GEN3_OUTPUT_PATH" -name "gen3_studies_filtered*.csv" | s
 
 # Step 3: XML generation
 log "Running dbGaP download with XML generation fallback..."
-python run_dbgap_xml_gen_fallback.py --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" --always-generate
+python "$SCRIPT_DIR/run_dbgap_xml_gen_fallback.py" --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" --always-generate
 
 
 
