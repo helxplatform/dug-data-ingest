@@ -102,21 +102,33 @@ sync_dir_to_lakefs() {
 # Upload each program directory to the same path in LakeFS
 log "Uploading program directories to LakeFS..."
 echo $XML_OUTPUT_PATH
-# Find all program directories in XML output
-# Actually sync all the directories.
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/biolincc" "bdc-biolincc" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/covid19" "bdc-covid19" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/curesc" "bdc-curesc" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/dir" "bdc-dir" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/heartfailure" "bdc-heartfailure" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/imaging" "bdc-imaging" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/lungmap" "bdc-lungmap" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/nsrr" "bdc-nsrr" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/parent" "bdc-parent" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/recover" "bdc-recover" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/reds" "bdc-reds" "main" ""
-sync_dir_to_lakefs "$XML_OUTPUT_PATH/topmed" "bdc-topmed" "main" ""
-#sync_dir_to_lakefs "$XML_OUTPUT_PATH/bdc/bdc_studies_kgx.json" "bdc-studies-kgx" "main" ""
+
+# Define program directories and their corresponding repositories
+declare -A PROGRAMS=(
+  ["biolincc"]="bdc-biolincc"
+  ["covid19"]="bdc-covid19"
+  ["curesc"]="bdc-curesc"
+  ["dir"]="bdc-dir"
+  ["heartfailure"]="bdc-heartfailure"
+  ["imaging"]="bdc-imaging"
+  ["lungmap"]="bdc-lungmap"
+  ["nsrr"]="bdc-nsrr"
+  ["parent"]="bdc-parent"
+  ["recover"]="bdc-recover"
+  ["reds"]="bdc-reds"
+  ["topmed"]="bdc-topmed"
+)
+
+# Sync only directories that exist
+for program in "${!PROGRAMS[@]}"; do
+  local_dir="$XML_OUTPUT_PATH/$program"
+  if [ -d "$local_dir" ]; then
+    log "Found directory: $local_dir"
+    sync_dir_to_lakefs "$local_dir" "${PROGRAMS[$program]}" "main" ""
+  else
+    log "Skipping $program: directory $local_dir does not exist"
+  fi
+done
 
 
 # Upload specific XML processing logs directly to LakeFS
