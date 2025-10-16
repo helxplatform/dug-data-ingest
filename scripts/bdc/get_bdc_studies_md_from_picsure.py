@@ -6,7 +6,7 @@ This script extracts metadata from PicSure API based on user access to studies
 and cleans the extracted data according to specific criteria. To run this will need a PICSURE_TOKEN
 
 Usage:
-    python picsure_tool.py [--output-dir OUTPUT_DIR] [--token TOKEN]
+    python get_bdc_studies_md_from_picsure.py [--output-dir OUTPUT_DIR] [--token TOKEN]
 
 Requirements:
     - PicSureClient
@@ -41,8 +41,7 @@ def clean_data(data):
         df['dtId'].notna() &
         df['varId'].notna() &
         df['derived_var_name'].notna() &
-        df['description'].notna() &
-        df['varId'].str.startswith('phv')
+        df['description'].notna()
     )
     
     cleaned_df = df[mask]
@@ -51,9 +50,14 @@ def clean_data(data):
     return cleaned_df
 
 
-def extract_picsure_data(output_dir, token=None):
+def extract_picsure_data(output_dir, token=None, gen3_csv=None):
     """
     Extract metadata from PicSure API
+
+    Args:
+        output_dir: Directory to save output files
+        token: PicSure API token
+        gen3_csv: Path to gen3_studies_filtered CSV file for filtering studies
     """
     log_file = output_dir / "picsure_extraction.log"
     
@@ -90,10 +94,23 @@ def extract_picsure_data(output_dir, token=None):
         
         logging.info("Converting to dataframe")
         all_variables_df = all_variables.dataframe()
-        
+
+        # Filter by gen3 studies if gen3_csv is provided
+        if gen3_csv:
+            logging.info(f"Filtering studies based on gen3 CSV: {gen3_csv}")
+            gen3_df = pd.read_csv(gen3_csv)
+            allowed_studies = set(gen3_df['Accession'].str.split('.').str[0])
+            logging.info(f"Found {len(allowed_studies)} studies in gen3 CSV: {', '.join(sorted(allowed_studies))}")
+
+            original_count = len(all_variables_df)
+            all_variables_df = all_variables_df[all_variables_df['studyId'].isin(allowed_studies)]
+            filtered_count = len(all_variables_df)
+
+            logging.info(f"Filtered from {original_count} to {filtered_count} rows based on gen3 studies")
+
         num_unique_studyIds = all_variables_df['studyId'].nunique()
         unique_study_ids = all_variables_df['studyId'].unique()
-        
+
         logging.info(f"Number of unique studyIds: {num_unique_studyIds}")
         
         logging.info("Unique study IDs:")
@@ -153,7 +170,8 @@ def main():
     parser = argparse.ArgumentParser(description='PicSure Data Extraction and Cleaning Tool')
     parser.add_argument('--output-dir', type=str, help='Directory to save output files')
     parser.add_argument('--token', type=str, help='PicSure API token (if not using environment variable)')
-    
+    parser.add_argument('--gen3-csv', type=str, help='Path to gen3_studies_filtered CSV file for filtering studies')
+
     args = parser.parse_args()
     
     output_dir = args.output_dir
@@ -174,8 +192,9 @@ def main():
     
     # Extract and clean mode
     print(f"Downloading PicSure data to: {output_path}")
-    extracted_file = extract_picsure_data(output_path, args.token)
-    
+    gen3_csv_path = Path(args.gen3_csv) if args.gen3_csv else None
+    extracted_file = extract_picsure_data(output_path, args.token, gen3_csv_path)
+
     print("\nCleaning downloaded data...")
     process_and_clean_file(extracted_file, output_path)
     
