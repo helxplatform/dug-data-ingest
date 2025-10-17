@@ -1,6 +1,7 @@
 # Values file for BDC ingest
 
 nameOverride: dug-data-ingest-bdc
-dataStorage: 200Mi
+dataStorage: 5Gi
 jobExecutor:
   script: bdc/ingest.sh
+  lakeFSRepository: bdc-ingest-logs

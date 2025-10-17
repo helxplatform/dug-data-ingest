@@ -126,10 +126,14 @@ def create_data_dict_xml(df_group, table_id, study_id, gen3_metadata):
     
     for _, row in df_group.iterrows():
         variable = ET.SubElement(root, "variable")
-        
+
         var_id = safe_text(row.get('varId', ''))
         var_version = 'v1'
-        
+
+        # If varId doesn't start with 'phv', prefix it with studyId
+        if not var_id.startswith('phv'):
+            var_id = f"{safe_text(study_id)}_{var_id}"
+
         variable.set("id", f"{var_id}.{var_version}")
         
         name = ET.SubElement(variable, "name")
@@ -205,9 +209,16 @@ def process_study(study_id, picsure_df, gen3_metadata, output_dir):
                 table_name = group['derived_group_name'].iloc[0]
                 if pd.isna(table_name):
                     table_name = 'unnamed'
+                else:
+                    # Sanitize table_name to prevent directory creation
+                    # Replace spaces and path separators with underscores
+                    table_name = str(table_name).replace('/', '_').replace('\\', '_').replace(' ', '_')
             except (KeyError, IndexError):
                 table_name = 'unnamed'
-            filename = f"{study_id}.{study_version}.{table_id}.{table_name}.data_dict.xml"
+            # Sanitize table_id to prevent directory creation from forward slashes in dtId
+            # Replace all path separators (/, \) with underscores
+            sanitized_table_id = str(table_id).replace('/', '_').replace('\\', '_')
+            filename = f"{study_id}.{study_version}.{sanitized_table_id}.{table_name}.data_dict.xml"
             filepath = os.path.join(output_dir, filename)
             save_xml(root, filepath)
         return True

@@ -31,6 +31,9 @@ RUN apk add curl
 # Needed to install tee to save logs to a file.
 RUN apk add coreutils
 
+# Build dependencies for pandas/numpy 
+RUN apk add --no-cache gcc musl-dev g++ gfortran openblas-dev lapack-dev
+
 # Update Python
 RUN pip install --upgrade pip
 

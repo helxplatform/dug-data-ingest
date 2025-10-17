@@ -14,8 +14,8 @@ from xml_generator import run_xml_generation
 from xml_utils import setup_logging_safe
 
 DEFAULT_CONFIG = {
-    "GEN3_CSV": "/path/to/gen3_studies_filtered.csv",
-    "PICSURE_CSV": "/path/to/cleaned_pic_sure_data.csv",
+    "GEN3_CSV": None,
+    "PICSURE_CSV": None,
     "OUTPUT_DIR": "output",
     "ACCESSION_FIELD": "Accession",
     "STUDY_ID_FIELD": "study_id",
@@ -150,7 +150,7 @@ def write_summary(timestamp_dir, summary_df, config):
     if overlap_ids and len(overlap_ids) > 0:
         summary_content.append("\nStudies found in both Gen3 and PicSure:")
         overlap_list = sorted(list(overlap_ids))
-        summary_content.append(f"  {'\t'.join(overlap_list)}")
+        summary_content.append(f" " + '\t'.join(overlap_list))
     
     summary_txt_path = os.path.join(timestamp_dir, 'processing_summary.txt')
     with open(summary_txt_path, 'w') as f:
@@ -420,14 +420,16 @@ def run_dbgap_download(config):
             logging.info("  XML Fallback: Disabled (PicSure CSV not required)")
         
         # Always check Gen3 CSV
-        if not os.path.exists(config["GEN3_CSV"]):
-            logging.error(f"Input file not found: {config['GEN3_CSV']}")
+        if not config["GEN3_CSV"] or not os.path.exists(config["GEN3_CSV"]):
+            logging.error(f"Gen3 CSV file not found or not specified: {config['GEN3_CSV']}")
             sys.exit(1)
-            
+
         # Only check PicSure CSV if fallback is not disabled
-        if not config["NO_FALLBACK"] and not os.path.exists(config["PICSURE_CSV"]):
-            logging.error(f"Input file not found: {config['PICSURE_CSV']}")
-            sys.exit(1)
+        if not config["NO_FALLBACK"]:
+            if not config["PICSURE_CSV"]:
+                logging.warning("PicSure CSV not specified. XML generation fallback may fail.")
+            elif not os.path.exists(config["PICSURE_CSV"]):
+                logging.warning(f"PicSure CSV file not found: {config['PICSURE_CSV']}. XML generation fallback may fail.")
         
         try:
             gen3_df = read_study_Gen3(config["GEN3_CSV"])

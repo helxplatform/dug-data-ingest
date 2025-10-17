@@ -8,7 +8,7 @@
 schedule: "0 11 * * wed"
 
 # Amount of storage needed to download all BDC data.
-dataStorage: 200Mi
+dataStorage: 5Gi
 
 # LakeFS information.
 lakeFS:
@@ -26,11 +26,11 @@ jobExecutor:
   backoffLimit: 0
   resources:
     limits:
-      cpu: 1000m
-      memory: 1G
+      cpu: 2000m
+      memory: 6G
     requests:
       cpu: 500m
-      memory: 1G
+      memory: 3G
   securityContext: {}
   podAnnotations: {}
   podLabels: {}
