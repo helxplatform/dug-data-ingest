@@ -22,7 +22,7 @@ class DugElement(BaseModel):
     name: str # ELement name (for example variable name)
     description: str # Description for the element
     type: str = "" # Type of the element: Must be one of concept/study/variable
-    program_name_list: List[str] = Field(default_factory=list) # List of programs that this element may belong to.
+    programs: List[str] = Field(default_factory=list) # List of programs that this element may belong to.
     action: str = "" # URL to the action
     parents: List[str] = Field(default_factory=list) # List of parents
     parent_type: str = "" # Every element can have one type of parent. i.e. variable can either belong to study or crf, and then crf can belong to a study and so on. 
@@ -51,7 +51,7 @@ class DugElement(BaseModel):
         self.parents.append(parent_element)
 
     def add_program_name(self, program_name):
-        self.program_name_list.append(program_name)
+        self.programs.append(program_name)
 
     def jsonable(self):
         """Output a pickleable object"""
@@ -69,7 +69,7 @@ class DugElement(BaseModel):
             'element_type': self.type,
             'metadata': self.metadata,
             'parents': self.parents,
-            'programs': self.program_name_list,
+            'programs': self.programs,
             'identifiers': (self.identifiers if isinstance(self.identifiers, list) else list(self.identifiers.keys()))
                            + (list(self.concepts.keys()) if self.concepts else []),
         }

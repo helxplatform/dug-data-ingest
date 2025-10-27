@@ -189,7 +189,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         }
         return study_details
 
-def transform_dds_to_dug(vlmd_dds, study_id, study_type):
+def transform_dds_to_dug(vlmd_dds, study_id, study_type, research_program=None):
     dug_variables = []
     for vlmd_dd in vlmd_dds:
         for variable in vlmd_dd.get('fields', []):
@@ -197,7 +197,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type):
             elem = DugVariable(id=study_id+':'+variable['name'],
                               name=variable['name'],
                               description=variable['description'],
-                              program_name_list=[study_type],
+                              programs=[study_type, research_program] if research_program else [study_type] ,
                               parents=[study_id, variable.get('section', '')],
                               data_type=variable.get('type', 'string'),
                               is_cde=False
@@ -221,7 +221,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type):
 @click.option(
     '--hdp-to-study-type-mappings-csv',
     default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'data/ResearchNetworksMappedToHDPID_Feb2025.csv'),
+                         'data/ResearchProgramsMappedToHDPID_Sept2025.csv'),
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help='The CSV file that maps HDP study IDs to HEAL study types.')
 @click.option(
@@ -254,7 +254,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
         mappings_reader = csv.DictReader(mappingsf)
         for mapping in mappings_reader:
             hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
-                'research_network': mapping['Research Network Name'],
+                'research_program': mapping['HEAL Research Program'],
                 'study_type': mapping['HEAL Study Type'],
             }
 
@@ -280,8 +280,9 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 logger.debug(f"Metadata for Study {sid} is not available, Skipping!")
                 continue
             study_type = hdp_to_study_type_mappings[study_details['id']]['study_type'] if study_details['id'] in hdp_to_study_type_mappings else "HEAL Studies"
+            research_program = hdp_to_study_type_mappings[study_details['id']]['research_program'] if study_type == 'HEAL Research Program' else None
 
-            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], study_details['id'], study_type)
+            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], study_details['id'], study_type, research_program)
             
             metadata = {}
             if study_details['project_start_date'] is not None and len(study_details['project_start_date']) > 0:
@@ -297,7 +298,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         id=study_details['id'],
                         name=study_details['study_name'],
                         description=study_details['description'],
-                        program_name_list=[study_type],
+                        programs=[study_type, research_program] if research_program else [study_type],
                         parents=[],
                         action = study_details['action'],
                         abstract=study_details['abstract'],
@@ -306,7 +307,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         metadata = metadata
                         )
             logger.debug(study)
-            elements = dug_variables.copy()
+            # elements = [study]
             if dug_variables is None:
                 elements = [study]
             else:
