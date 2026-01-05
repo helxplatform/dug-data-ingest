@@ -21,7 +21,6 @@ HEAL_STUDY_GUID_TYPES = [
     'discovery_metadata',                   # Fully registered studies.
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
-HDP_ID_PREFIX = 'HEALDATAPLATFORM:'
 
 def translate_data_dictionary_field(field):
     """
@@ -158,6 +157,21 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         publication_list = []
         if study_metadata is not None and ('findings' in study_metadata and 'primary_publications' in study_metadata['findings']):
             publication_list = study_metadata['findings']['primary_publications']
+        
+        repositories = []
+        if study_metadata is not None and ('metadata_location' in study_metadata and 'data_repositories' in study_metadata['metadata_location']):
+            repositories = [k['repository_study_link'] for k in study_metadata['metadata_location']['data_repositories'] if 'repository_study_link' in k and len(k['repository_study_link']) > 0]
+
+        """
+        gen3_discovery.__manifest field exists AND is not empty
+        OR
+        gen3_discovery.study_metadata.metadata_location.data_repositories.repository_study_link  exists AND is not empty ]
+        AND
+        _guid_type is set to discovery_metadata OR unregistered_discovery_metadata
+        """
+        data_availability = ''
+        if ("__manifest" in gen3_discovery and len(gen3_discovery["__manifest"]) > 0) or len(repositories) > 0:
+            data_availability = "available"
 
         vlmd_dds = []
         if vlmd_data is not None and "data_dictionaries" in vlmd_data:
@@ -175,7 +189,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
                         json.dump(vlmd_dd, f, indent=2)
 
         study_details = {
-            "id": HDP_ID_PREFIX + study_id,
+            "id": study_id,
             "study_name" : minimal_info.get('study_name', ""),
             "description" : description,
             "action" : gen3_discovery['doi_url'] if (gen3_discovery is not None and "doi_url" in gen3_discovery and len(gen3_discovery['doi_url']) >0) else (PUBLIC_MDS_ENDPOINT + "/" + study_id), ## TODO: There's a DOI link on MDS as well. Use that when available.
@@ -185,6 +199,8 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             "publication_list": publication_list,
             "pi_list": pi_list,
             'institution': gen3_discovery['institutions'] if gen3_discovery is not None and 'institutions' in gen3_discovery else '',
+            'data_availability': data_availability,
+            'repositories': repositories,
             'vlmd_dds': vlmd_dds,
         }
         return study_details
@@ -253,7 +269,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
     with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
         mappings_reader = csv.DictReader(mappingsf)
         for mapping in mappings_reader:
-            hdp_to_study_type_mappings[HDP_ID_PREFIX + mapping['HDPID']] = {
+            hdp_to_study_type_mappings[mapping['HDPID']] = {
                 'research_program': mapping['HEAL Research Program'],
                 'study_type': mapping['HEAL Study Type'],
             }
@@ -293,6 +309,10 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 metadata['Institution'] = study_details['institution']
             if study_details['pi_list'] is not None and len(study_details['pi_list']) > 0:
                 metadata['Investigator/s'] = study_details['pi_list']
+            if len(study_details['data_availability']) > 0:
+                metadata['Data Availability'] = study_details['data_availability']
+            if len(study_details['repositories']) > 0:
+                metadata['Data Package Links'] = study_details['repositories']
 
             study = DugStudy(
                         id=study_details['id'],

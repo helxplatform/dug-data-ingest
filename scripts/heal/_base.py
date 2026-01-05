@@ -2,11 +2,10 @@ from __future__ import annotations
 import json
 from typing import Union, Callable, Any, Iterable, Dict, List, Annotated, Literal
 
-from dug.core.loaders import InputFile
+# from dug.core.loaders import InputFile
 
 from dug import utils as utils
 from pydantic import BaseModel, Field, TypeAdapter, computed_field
-
 VARIABLE_TYPE = 'variable'
 STUDY_TYPE = 'study'
 CONCEPT_TYPE = 'concept'
@@ -31,7 +30,6 @@ class DugElement(BaseModel):
     search_terms: List[str] = Field(default_factory=list)
     optional_terms: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    identifiers: List[str] = Field(default_factory=list)
     
     @computed_field
     @property
@@ -70,8 +68,7 @@ class DugElement(BaseModel):
             'metadata': self.metadata,
             'parents': self.parents,
             'programs': self.programs,
-            'identifiers': (self.identifiers if isinstance(self.identifiers, list) else list(self.identifiers.keys()))
-                           + (list(self.concepts.keys()) if self.concepts else []),
+            'identifiers': (list(self.concepts.keys()) if self.concepts else []),
         }
         return es_elem
 
@@ -198,7 +195,7 @@ class DugSection(DugElement):
  
 Indexable = Union[DugConcept, DugVariable, DugStudy, DugSection]
 Parser = Callable[[Any], Iterable[Indexable]]
-FileParser = Callable[[InputFile], Iterable[Indexable]]
+#FileParser = Callable[[InputFile], Iterable[Indexable]]
 
 DiscriminatedIndexable = Annotated[Indexable, Field(discriminator="type")]
 DugElementParsedList = TypeAdapter(List[DiscriminatedIndexable])
