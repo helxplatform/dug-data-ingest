@@ -6,6 +6,7 @@ from typing import Union, Callable, Any, Iterable, Dict, List, Annotated, Litera
 
 from dug import utils as utils
 from pydantic import BaseModel, Field, TypeAdapter, computed_field
+
 VARIABLE_TYPE = 'variable'
 STUDY_TYPE = 'study'
 CONCEPT_TYPE = 'concept'
@@ -168,6 +169,7 @@ class DugStudy(DugElement):
     type:Literal["study"]=STUDY_TYPE
     publications:List[str] = Field(default_factory=list)
     variable_list:List[str] = Field(default_factory=list)
+    section_list:List[str] = Field(default_factory=list)
     abstract:str=''
 
     def get_searchable_dict(self):
@@ -176,6 +178,7 @@ class DugStudy(DugElement):
         es_study = {**es_elem, 
                     'publications': self.publications,
                     'variable_list': self.variable_list,
+                    'section_list': self.section_list,
                     'abstract': self.abstract
                    }
         return es_study
@@ -195,7 +198,7 @@ class DugSection(DugElement):
  
 Indexable = Union[DugConcept, DugVariable, DugStudy, DugSection]
 Parser = Callable[[Any], Iterable[Indexable]]
-#FileParser = Callable[[InputFile], Iterable[Indexable]]
+# FileParser = Callable[[InputFile], Iterable[Indexable]]
 
 DiscriminatedIndexable = Annotated[Indexable, Field(discriminator="type")]
 DugElementParsedList = TypeAdapter(List[DiscriminatedIndexable])

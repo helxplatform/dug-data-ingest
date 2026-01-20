@@ -8,8 +8,7 @@ from xml.etree import ElementTree as ET
 import csv
 import json
 from dug import utils as utils
-from _base import DugStudy, DugVariable, DugSection, DugElement
-from pydantic_core import from_json
+from _base import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE
 
 logger = logging.getLogger('dug')
 
@@ -21,6 +20,29 @@ HEAL_STUDY_GUID_TYPES = [
     'discovery_metadata',                   # Fully registered studies.
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
+
+def get_study_cde_mappings(cde_dir:Path):
+    
+    all_cde_files = list(cde_dir.glob("*.dug.json"))
+    study_cde_mappings = dict()
+    for cde_file in all_cde_files:
+        with open(cde_file, "r") as f:
+            json_obj = json.load(f)
+            elements = DugElementParsedList.validate_python(json_obj)
+            section_obj = [e for e in elements if e.type==SECTION_TYPE]
+            if len(section_obj) !=1:
+                print(f"Something wrong with CDE: {cde_file}")
+            section = section_obj[0] 
+            section_id = section.id.split(":")[1]
+            study_mappings = section.metadata['study_mappings']
+            if len(study_mappings) > 0:
+                studies = list(study_mappings.keys())  
+                for study in studies:
+                    if study in study_cde_mappings:
+                        study_cde_mappings[study].append(section_id)
+                    else:
+                        study_cde_mappings[study] = [section_id]
+    return study_cde_mappings
 
 def translate_data_dictionary_field(field):
     """
@@ -241,6 +263,12 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type, research_program=None):
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help='The CSV file that maps HDP study IDs to HEAL study types.')
 @click.option(
+    '--cde-location',
+    default=None,
+    type=click.Path(exists=True, dir_okay=True, file_okay=False),
+    help='Location to a directory with DUG JSON files of CDEs to get CDE->Study mapping. '
+)
+@click.option(
     '--limit', default=MDS_DEFAULT_LIMIT,
     help='The maximum number of entries to retrieve from the Platform '
     'MDS. Note that some MDS instances have their own built-in '
@@ -255,7 +283,9 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type, research_program=None):
      help='Run in debug mode.'
 )
 def get_heal_studies(output, mds_metadata_endpoint,
-                                     hdp_to_study_type_mappings_csv, limit,
+                                     hdp_to_study_type_mappings_csv, 
+                                     limit,
+                                     cde_location,
                                      use_cached,
                                      debug):
     logging.basicConfig(filename= Path(output)/"log.tx", level = logging.DEBUG if debug else logging.INFO)
@@ -273,7 +303,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 'research_program': mapping['HEAL Research Program'],
                 'study_type': mapping['HEAL Study Type'],
             }
-
+    study_cde_mappings = get_study_cde_mappings(Path(cde_location))
     metadata_ids = []
     for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
         result = requests.get(mds_metadata_endpoint, params={
@@ -324,6 +354,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         abstract=study_details['abstract'],
                         publications = study_details['publication_list'],
                         variable_list = [k.id for k in dug_variables] if dug_variables is not None else [],
+                        section_list = study_cde_mappings[study_details['id']] if study_details['id'] in study_cde_mappings else [],
                         metadata = metadata
                         )
             logger.debug(study)
@@ -342,16 +373,3 @@ def get_heal_studies(output, mds_metadata_endpoint,
 
 if __name__ == "__main__":
     get_heal_studies()
-
-# for k in studies:
-            #     study_json = [k.model_dump()]
-            #     with open(Path(output)/f"output_{k.get_id()}.json", "w") as f:
-            #         json.dump(study_json, f, indent=4)
-
-            # studies.append(study)
-
-    # print(f"Processed {len(studies)} studies")
-    # study_json = [k.model_dump() for k in studies]
-    # with open(Path(output)/f"output.json", "w") as f:
-    #     json.dump(study_json, f, indent=4)
-    
