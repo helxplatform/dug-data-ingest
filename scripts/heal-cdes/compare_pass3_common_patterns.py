@@ -63,8 +63,8 @@ def identify_common_patterns(differences, total_files):
                 pattern_to_examples[pattern].append({
                     'filename': diff['filename'],
                     'location': diff['location'],
-                    'dir1_value': diff['dir1_value'],
-                    'dir2_value': diff['dir2_value']
+                    'dug_2026jan_value': diff.get('dug_2026jan_value', diff.get('dir1_value', '')),
+                    'heal_cdes_value': diff.get('heal_cdes_value', diff.get('dir2_value', ''))
                 })
 
     # Calculate percentages and create report
@@ -79,8 +79,8 @@ def identify_common_patterns(differences, total_files):
             'percentage': f"{percentage:.1f}%",
             'example_filename': pattern_to_examples[pattern][0]['filename'] if pattern_to_examples[pattern] else '',
             'example_location': pattern_to_examples[pattern][0]['location'] if pattern_to_examples[pattern] else '',
-            'example_dir1_value': pattern_to_examples[pattern][0]['dir1_value'][:100] if pattern_to_examples[pattern] else '',
-            'example_dir2_value': pattern_to_examples[pattern][0]['dir2_value'][:100] if pattern_to_examples[pattern] else ''
+            'example_dug_2026jan_value': pattern_to_examples[pattern][0]['dug_2026jan_value'][:100] if pattern_to_examples[pattern] else '',
+            'example_heal_cdes_value': pattern_to_examples[pattern][0]['heal_cdes_value'][:100] if pattern_to_examples[pattern] else ''
         })
 
     # Sort by number of files (descending)
@@ -126,7 +126,7 @@ def main():
     common_report_path = "comparison_pass3_common_patterns.csv"
     with open(common_report_path, 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['location_pattern', 'difference_type', 'num_files', 'percentage',
-                      'example_filename', 'example_location', 'example_dir1_value', 'example_dir2_value']
+                      'example_filename', 'example_location', 'example_dug_2026jan_value', 'example_heal_cdes_value']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(common_patterns)
@@ -159,7 +159,8 @@ def main():
     filtered_report_path = "comparison_pass3_filtered_diff.csv"
     with open(filtered_report_path, 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['filename', 'location', 'difference_type',
-                      'dir1_value', 'dir1_type', 'dir2_value', 'dir2_type']
+                      'dug_2026jan_value', 'dug_2026jan_type', 'heal_cdes_value', 'heal_cdes_type',
+                      'dug_2026jan_context', 'heal_cdes_context']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(filtered_differences)

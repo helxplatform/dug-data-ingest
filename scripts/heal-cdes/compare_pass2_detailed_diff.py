@@ -22,7 +22,23 @@ def json_path_to_string(path):
             result += f".{item}"
     return result
 
-def compare_values(val1, val2, path, differences):
+def get_context_from_path(data, path):
+    """Get the parent context object from a path (one level up)."""
+    if len(path) <= 1:
+        # If path is at root or one level deep, return the full object
+        return json.dumps(data, ensure_ascii=False, indent=2)[:500]
+
+    # Navigate to parent (one level up from current path)
+    parent_path = path[:-1]
+    current = data
+    try:
+        for step in parent_path:
+            current = current[step]
+        return json.dumps(current, ensure_ascii=False, indent=2)[:500]
+    except (KeyError, IndexError, TypeError):
+        return '<context unavailable>'
+
+def compare_values(val1, val2, path, differences, root1, root2):
     """Recursively compare two JSON values and collect differences."""
     current_path = json_path_to_string(path)
 
@@ -34,7 +50,9 @@ def compare_values(val1, val2, path, differences):
             'dir1_value': str(val1),
             'dir1_type': type(val1).__name__,
             'dir2_value': str(val2),
-            'dir2_type': type(val2).__name__
+            'dir2_type': type(val2).__name__,
+            'dir1_context': get_context_from_path(root1, path),
+            'dir2_context': get_context_from_path(root2, path)
         })
         return
 
@@ -49,7 +67,9 @@ def compare_values(val1, val2, path, differences):
                     'dir1_value': '<missing>',
                     'dir1_type': 'N/A',
                     'dir2_value': json.dumps(val2[key], ensure_ascii=False)[:200],
-                    'dir2_type': type(val2[key]).__name__
+                    'dir2_type': type(val2[key]).__name__,
+                    'dir1_context': get_context_from_path(root1, path + [key]),
+                    'dir2_context': get_context_from_path(root2, path + [key])
                 })
             elif key not in val2:
                 differences.append({
@@ -58,10 +78,12 @@ def compare_values(val1, val2, path, differences):
                     'dir1_value': json.dumps(val1[key], ensure_ascii=False)[:200],
                     'dir1_type': type(val1[key]).__name__,
                     'dir2_value': '<missing>',
-                    'dir2_type': 'N/A'
+                    'dir2_type': 'N/A',
+                    'dir1_context': get_context_from_path(root1, path + [key]),
+                    'dir2_context': get_context_from_path(root2, path + [key])
                 })
             else:
-                compare_values(val1[key], val2[key], path + [key], differences)
+                compare_values(val1[key], val2[key], path + [key], differences, root1, root2)
 
     # Handle lists
     elif isinstance(val1, list):
@@ -72,12 +94,14 @@ def compare_values(val1, val2, path, differences):
                 'dir1_value': f"length={len(val1)}",
                 'dir1_type': 'list',
                 'dir2_value': f"length={len(val2)}",
-                'dir2_type': 'list'
+                'dir2_type': 'list',
+                'dir1_context': get_context_from_path(root1, path),
+                'dir2_context': get_context_from_path(root2, path)
             })
             # Continue to compare elements up to the minimum length
 
         for i in range(min(len(val1), len(val2))):
-            compare_values(val1[i], val2[i], path + [i], differences)
+            compare_values(val1[i], val2[i], path + [i], differences, root1, root2)
 
         # Report extra items if lists have different lengths
         if len(val1) > len(val2):
@@ -88,7 +112,9 @@ def compare_values(val1, val2, path, differences):
                     'dir1_value': json.dumps(val1[i], ensure_ascii=False)[:200],
                     'dir1_type': type(val1[i]).__name__,
                     'dir2_value': '<missing>',
-                    'dir2_type': 'N/A'
+                    'dir2_type': 'N/A',
+                    'dir1_context': get_context_from_path(root1, path + [i]),
+                    'dir2_context': get_context_from_path(root2, path + [i])
                 })
         elif len(val2) > len(val1):
             for i in range(len(val1), len(val2)):
@@ -98,7 +124,9 @@ def compare_values(val1, val2, path, differences):
                     'dir1_value': '<missing>',
                     'dir1_type': 'N/A',
                     'dir2_value': json.dumps(val2[i], ensure_ascii=False)[:200],
-                    'dir2_type': type(val2[i]).__name__
+                    'dir2_type': type(val2[i]).__name__,
+                    'dir1_context': get_context_from_path(root1, path + [i]),
+                    'dir2_context': get_context_from_path(root2, path + [i])
                 })
 
     # Handle primitive values
@@ -110,7 +138,9 @@ def compare_values(val1, val2, path, differences):
                 'dir1_value': json.dumps(val1, ensure_ascii=False)[:200] if not isinstance(val1, str) else val1[:200],
                 'dir1_type': type(val1).__name__,
                 'dir2_value': json.dumps(val2, ensure_ascii=False)[:200] if not isinstance(val2, str) else val2[:200],
-                'dir2_type': type(val2).__name__
+                'dir2_type': type(val2).__name__,
+                'dir1_context': get_context_from_path(root1, path),
+                'dir2_context': get_context_from_path(root2, path)
             })
 
 def compare_files(file1_path, file2_path):
@@ -121,7 +151,7 @@ def compare_files(file1_path, file2_path):
         data2 = json.load(f)
 
     differences = []
-    compare_values(data1, data2, [], differences)
+    compare_values(data1, data2, [], differences, data1, data2)
     return differences
 
 def main():
@@ -159,9 +189,20 @@ def main():
     report_path = "comparison_pass2_detailed_diff.csv"
     with open(report_path, 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['filename', 'location', 'difference_type',
-                      'dir1_value', 'dir1_type', 'dir2_value', 'dir2_type']
+                      'dug_2026jan_value', 'dug_2026jan_type', 'heal_cdes_value', 'heal_cdes_type',
+                      'dug_2026jan_context', 'heal_cdes_context']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
+
+        # Rename keys in all_differences to match new fieldnames
+        for diff in all_differences:
+            diff['dug_2026jan_value'] = diff.pop('dir1_value', '')
+            diff['dug_2026jan_type'] = diff.pop('dir1_type', '')
+            diff['heal_cdes_value'] = diff.pop('dir2_value', '')
+            diff['heal_cdes_type'] = diff.pop('dir2_type', '')
+            diff['dug_2026jan_context'] = diff.pop('dir1_context', '')
+            diff['heal_cdes_context'] = diff.pop('dir2_context', '')
+
         writer.writerows(all_differences)
 
     print(f"Files identical: {files_identical}")

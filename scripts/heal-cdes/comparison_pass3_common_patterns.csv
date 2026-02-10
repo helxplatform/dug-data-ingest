@@ -1,22 +1,22 @@
-location_pattern,difference_type,num_files,percentage,example_filename,example_location,example_dir1_value,example_dir2_value
+location_pattern,difference_type,num_files,percentage,example_filename,example_location,example_dug_2026jan_value,example_heal_cdes_value
+$[*].parents[*],value_mismatch,225,100.0%,HDPCDE10006.json,$[0].parents[0],HEALCDE:craving-scale-3-item,HDPCDE10006
 $[*].metadata.question_text,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.question_text,"""Please rate how strong your desire was to use in the past 24 hours.""",<missing>
 $[*].metadata.short_description,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.short_description,"""Strengths of desire to use in the past 24 hours""",<missing>
 $[*].metadata.instructions,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.instructions,"""Choose one.""",<missing>
 $[*].metadata.references,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.references,"""McHugh RK, Trinh CD, Griffin ML, Weiss RD. Validation of the craving scale in a large sample of adu",<missing>
 $[*].metadata.crf_name,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.crf_name,"""The Craving Scale 3 item""",<missing>
 $[*].metadata.*,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[0].metadata.crf_name,"""The Craving Scale 3 item""",<missing>
-$[*].parents[*],value_mismatch,225,100.0%,HDPCDE10006.json,$[0].parents[0],HEALCDE:craving-scale-3-item,HDPCDE10006
 $[*].*,value_mismatch,225,100.0%,HDPCDE10006.json,$[3].data_type,number,integer
-$[*].description,value_mismatch,225,100.0%,HDPCDE10006.json,$[4].description,The Craving Scale is a 3-item measure of craving that has been previously validated in cocaine-depen,
 $[*].id,value_mismatch,225,100.0%,HDPCDE10006.json,$[4].id,craving-scale-3-item,HDPCDE10006
+$[*].description,value_mismatch,225,100.0%,HDPCDE10006.json,$[4].description,The Craving Scale is a 3-item measure of craving that has been previously validated in cocaine-depen,
 $[*].*,key_only_in_dir1,225,100.0%,HDPCDE10006.json,$[4].metadata,"{""categories"": [""Supplemental""], ""urls"": [{""url"": ""https://heal.nih.gov/files/CDEs/2024-11/craving-s",<missing>
-$[*].*,key_only_in_dir2,224,99.6%,HDPCDE10006.json,$[4].urls,<missing>,"[{""url"": ""https://www.nih.gov/sites/default/files/CDEs/2026-01/craving-scale-3-item-cde.xlsx"", ""file"
 $[*].metadata,key_only_in_dir1,224,99.6%,HDPCDE10006.json,$[4].metadata,"{""categories"": [""Supplemental""], ""urls"": [{""url"": ""https://heal.nih.gov/files/CDEs/2024-11/craving-s",<missing>
+$[*].*,key_only_in_dir2,224,99.6%,HDPCDE10006.json,$[4].urls,<missing>,"[{""url"": ""https://www.nih.gov/sites/default/files/CDEs/2026-01/craving-scale-3-item-cde.xlsx"", ""file"
 $[*].metadata.drupal_id,key_only_in_dir2,224,99.6%,HDPCDE4871.json,$[0].metadata.drupal_id,<missing>,"""4871"""
 $[*].metadata.*,key_only_in_dir2,224,99.6%,HDPCDE4871.json,$[0].metadata.drupal_id,<missing>,"""4871"""
+$[*].variable_list[*],type_mismatch,223,99.1%,HDPCDE10006.json,$[4].variable_list[0],Crav3desire,"{'type': 'variable', 'is_cde': True, 'id': 'Crav3desire', 'name': 'Craving Scale desire to use', 'de"
 $[*].crf_id,value_mismatch,223,99.1%,HDPCDE10006.json,$[4].crf_id,craving-scale-3-item,HDPCDE10006
 $[*].urls,key_only_in_dir2,223,99.1%,HDPCDE10006.json,$[4].urls,<missing>,"[{""url"": ""https://www.nih.gov/sites/default/files/CDEs/2026-01/craving-scale-3-item-cde.xlsx"", ""file"
-$[*].variable_list[*],type_mismatch,223,99.1%,HDPCDE10006.json,$[4].variable_list[0],Crav3desire,"{'type': 'variable', 'is_cde': True, 'id': 'Crav3desire', 'name': 'Craving Scale desire to use', 'de"
 $[*].action,value_mismatch,222,98.7%,HDPCDE10006.json,$[4].action,https://heal.nih.gov/files/CDEs/2024-11/craving-scale-3-item-crf.docx,https://www.nih.gov/sites/default/files/CDEs/2026-01/craving-scale-3-item-cde.xlsx
 $[*].data_type,value_mismatch,196,87.1%,HDPCDE10006.json,$[3].data_type,number,integer
 $[*].metadata.enum,key_only_in_dir1,150,66.7%,HDPCDE10006.json,$[3].metadata.enum,"[""0 to 9""]",<missing>
@@ -28,7 +28,7 @@ $[*].name,value_mismatch,120,53.3%,HDPCDE5041.json,$[7].name,Patient-Reported Ou
 $[*].metadata.minimum,key_only_in_dir1,79,35.1%,HDPCDE5041.json,$[6].metadata.minimum,6,<missing>
 $[*].metadata.permissible_values,key_only_in_dir1,43,19.1%,HDPCDE5401.json,$[12].metadata.permissible_values,"{""0"": ""Before 8:00 p.m."", ""1"": ""8:00-8:29 p.m."", ""2"": ""8:30-8:59 p.m."", ""3"": ""9:00-9:29 p.m."", ""4"": ",<missing>
 $[*].metadata.permissible_values.*,value_mismatch,32,14.2%,HDPCDE4926.json,$[0].metadata.permissible_values.4, Severe,Severe
-$[*].metadata.permissible_values.*,key_only_in_dir1,21,9.3%,HDPCDE4936.json,$[0].metadata.permissible_values.1,"""Several days""",<missing>
+$[*].metadata.permissible_values.*,key_only_in_dir1,21,9.3%,HDPCDE4936.json,$[0].metadata.permissible_values.0,"""Not at all""",<missing>
 $[*].metadata.permissible_values.*,key_only_in_dir2,19,8.4%,HDPCDE10006.json,$[0].metadata.permissible_values.6,<missing>,"""6"""
 $[*].metadata.study_variable_mappings,key_only_in_dir1,16,7.1%,HDPCDE4881.json,$[0].metadata.study_variable_mappings,"{""HDP00253"": [""c_pcs_1""]}",<missing>
 $[*].metadata.permissible_values.4,value_mismatch,16,7.1%,HDPCDE4926.json,$[0].metadata.permissible_values.4, Severe,Severe
@@ -42,9 +42,9 @@ $[*].metadata.permissible_values.3,key_only_in_dir2,11,4.9%,HDPCDE10006.json,$[0
 $[*].metadata.permissible_values.0,key_only_in_dir1,11,4.9%,HDPCDE4936.json,$[0].metadata.permissible_values.0,"""Not at all""",<missing>
 $[*].metadata.enum[*],value_mismatch,11,4.9%,HDPCDE5096.json,$[2].metadata.enum[0],0 to 6,0
 $[*].metadata.*,value_mismatch,11,4.9%,HDPCDE5096.json,$[2].metadata.enum[0],0 to 6,0
+$[*].metadata.permissible_values.3,key_only_in_dir1,10,4.4%,HDPCDE4936.json,$[0].metadata.permissible_values.3,"""Nearly every day""",<missing>
 $[*].metadata.permissible_values.1,key_only_in_dir1,10,4.4%,HDPCDE4936.json,$[0].metadata.permissible_values.1,"""Several days""",<missing>
 $[*].metadata.permissible_values.2,key_only_in_dir1,10,4.4%,HDPCDE4936.json,$[0].metadata.permissible_values.2,"""More than half the days""",<missing>
-$[*].metadata.permissible_values.3,key_only_in_dir1,10,4.4%,HDPCDE4936.json,$[0].metadata.permissible_values.3,"""Nearly every day""",<missing>
 $[*].metadata.permissible_values.1,key_only_in_dir2,9,4.0%,HDPCDE10006.json,$[0].metadata.permissible_values.1,<missing>,"""1"""
 $[*].metadata.permissible_values,key_only_in_dir2,9,4.0%,HDPCDE5096.json,$[2].metadata.permissible_values,<missing>,{}
 $[*].metadata.permissible_values.5,value_mismatch,9,4.0%,HDPCDE5131.json,$[48].metadata.permissible_values.5,Micropolitan high commuting: primary flow 30% or more to a large UC,Micropolitan high commuting= primary flow 30% or more to a large UC
@@ -72,43 +72,43 @@ $[*].type,value_mismatch,2,0.9%,HDPCDE5041.json,$[7].type,variable,section
 $[*].action,key_only_in_dir1,2,0.9%,HDPCDE5836.json,$[10].action,"""https://heal.nih.gov/files/CDEs/2023-07/promis-severity-of-substance-use-7a-crf.docx""",<missing>
 $[*].metadata.enum,key_only_in_dir2,2,0.9%,HDPCDE7061.json,$[1].metadata.enum,<missing>,"[""99"", ""1"", ""2"", ""3"", ""4"", ""5"", ""6"", ""7""]"
 $[*].metadata.permissible_values.10,key_only_in_dir2,2,0.9%,HDPCDE7626.json,$[0].metadata.permissible_values.10,<missing>,"""worst pain ever."""
-$[*].crf_id,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].crf_id,<missing>,"""HDPCDE5041"""
+$[*].variable_list,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].variable_list,<missing>,"[{""type"": ""variable"", ""is_cde"": true, ""id"": ""PROMISPhysFuncChrsAblScl"", ""name"": ""Patient-Reported Ou"
+$[*].is_crf,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].is_crf,<missing>,true
 $[*].data_type,key_only_in_dir1,1,0.4%,HDPCDE5041.json,$[7].data_type,"""number""",<missing>
 $[*].is_cde,key_only_in_dir1,1,0.4%,HDPCDE5041.json,$[7].is_cde,true,<missing>
 $[*].action,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].action,<missing>,"""https://www.nih.gov/sites/default/files/CDEs/2026-01/physical-function-6b-cdes.xlsx"""
-$[*].is_crf,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].is_crf,<missing>,true
-$[*].variable_list,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].variable_list,<missing>,"[{""type"": ""variable"", ""is_cde"": true, ""id"": ""PROMISPhysFuncChrsAblScl"", ""name"": ""Patient-Reported Ou"
+$[*].crf_id,key_only_in_dir2,1,0.4%,HDPCDE5041.json,$[7].crf_id,<missing>,"""HDPCDE5041"""
 $[*],item_only_in_dir1,1,0.4%,HDPCDE5041.json,$[8],"{""type"": ""section"", ""id"": ""physical-function-6b"", ""parents"": [""HDP00033"", ""HDP00039"", ""HDP00106"", ""H",<missing>
 $[*].name,type_mismatch,1,0.4%,HDPCDE5141.json,$[21].name,SurveyLanguage,None
 $[*].*,type_mismatch,1,0.4%,HDPCDE5141.json,$[21].name,SurveyLanguage,None
 $[*].metadata.permissible_values.11,value_mismatch,1,0.4%,HDPCDE5401.json,$[10].metadata.permissible_values.11,After 1:00 a.m.,After 1=00 a.m.
 $[*].metadata.permissible_values.13,value_mismatch,1,0.4%,HDPCDE5401.json,$[14].metadata.permissible_values.13,After 2:00 a.m.,After 2=00 a.m.
 $[*].metadata.permissible_values.12,value_mismatch,1,0.4%,HDPCDE5401.json,$[14].metadata.permissible_values.12,1:30 - 1:59a.m.,1=30 - 1=59a.m.
-$[*].metadata.permissible_values.17,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.17, After 1:00 p.m.,After 1=00 p.m.
-$[*].metadata.permissible_values.16,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.16,12:30 - 12:59 p.m.,12=30 - 12=59 p.m.
 $[*].metadata.permissible_values.15,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.15,12:00-12:29 p.m.,12=00-12=29 p.m.
 $[*].metadata.permissible_values.14,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.14,11:30-11:59a.m.,11=30-11=59a.m.
+$[*].metadata.permissible_values.16,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.16,12:30 - 12:59 p.m.,12=30 - 12=59 p.m.
+$[*].metadata.permissible_values.17,value_mismatch,1,0.4%,HDPCDE5401.json,$[16].metadata.permissible_values.17, After 1:00 p.m.,After 1=00 p.m.
 $[*].metadata.permissible_values.92,value_mismatch,1,0.4%,HDPCDE6141.json,$[5].metadata.permissible_values.92, I don't know,I don't know
 $[*].metadata.permissible_values.99,key_only_in_dir2,1,0.4%,HDPCDE7061.json,$[0].metadata.permissible_values.99,<missing>,"""I did not have a pain attack (crises) in the past 12 months"""
 $[*].metadata.enum[*],item_only_in_dir1,1,0.4%,HDPCDE7061.json,$[0].metadata.enum[5],"""6""",<missing>
 $[*].metadata.*,item_only_in_dir1,1,0.4%,HDPCDE7061.json,$[0].metadata.enum[5],"""6""",<missing>
-$[*].crf_id,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].crf_id,"""arthritis-self-efficacy-scale-pain-scale-1-item""",<missing>
-$[*].data_type,key_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].data_type,<missing>,"""integer"""
-$[*].is_cde,key_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].is_cde,<missing>,true
+$[*].variable_list,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].variable_list,"[""ASEpainSIS""]",<missing>
+$[*].parents[*],item_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].parents[0],<missing>,"""HDPCDE7061"""
+$[*].is_crf,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].is_crf,true,<missing>
 $[*].metadata.study_mappings,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].metadata.study_mappings,{},<missing>
 $[*].metadata.categories,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].metadata.categories,"[""Supplemental""]",<missing>
 $[*].metadata.urls,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].metadata.urls,"[{""url"": ""https://heal.nih.gov/files/CDEs/2023-09/arthritis-self-efficacy-scale-pain-scale-1-item-cr",<missing>
-$[*].is_crf,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].is_crf,true,<missing>
-$[*].parents[*],item_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].parents[0],<missing>,"""HDPCDE7061"""
-$[*].variable_list,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].variable_list,"[""ASEpainSIS""]",<missing>
+$[*].data_type,key_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].data_type,<missing>,"""integer"""
+$[*].is_cde,key_only_in_dir2,1,0.4%,HDPCDE7061.json,$[1].is_cde,<missing>,true
+$[*].crf_id,key_only_in_dir1,1,0.4%,HDPCDE7061.json,$[1].crf_id,"""arthritis-self-efficacy-scale-pain-scale-1-item""",<missing>
 $[*],item_only_in_dir2,1,0.4%,HDPCDE7061.json,$[2],<missing>,"{""type"": ""variable"", ""is_cde"": true, ""id"": ""promis_painepisodeq3"", ""name"": ""ASCQ-Me v2.0 Pain Episod"
-$[*].metadata.permissible_values.0 to 10,key_only_in_dir1,1,0.4%,HDPCDE7626.json,$[0].metadata.permissible_values.0 to 10,"""0 = No pain, 10 = worst pain ever.""",<missing>
 $[*].metadata.permissible_values.0,key_only_in_dir2,1,0.4%,HDPCDE7626.json,$[0].metadata.permissible_values.0,<missing>,"""No pain"""
+$[*].metadata.permissible_values.0 to 10,key_only_in_dir1,1,0.4%,HDPCDE7626.json,$[0].metadata.permissible_values.0 to 10,"""0 = No pain, 10 = worst pain ever.""",<missing>
 $[*].metadata.permissible_values.6.,key_only_in_dir2,1,0.4%,HDPCDE7876.json,$[5].metadata.permissible_values.6.,<missing>,"""Almost Always"""
 $[*].metadata.permissible_values.6.*,key_only_in_dir2,1,0.4%,HDPCDE7876.json,$[5].metadata.permissible_values.6.,<missing>,"""Almost Always"""
-$[*].metadata.permissible_values.13,key_only_in_dir2,1,0.4%,HDPCDE8311.json,$[12].metadata.permissible_values.13,<missing>,"""13"""
-$[*].metadata.permissible_values.11,key_only_in_dir2,1,0.4%,HDPCDE8311.json,$[12].metadata.permissible_values.11,<missing>,"""11"""
 $[*].metadata.permissible_values.15,key_only_in_dir2,1,0.4%,HDPCDE8311.json,$[12].metadata.permissible_values.15,<missing>,"""15"""
+$[*].metadata.permissible_values.11,key_only_in_dir2,1,0.4%,HDPCDE8311.json,$[12].metadata.permissible_values.11,<missing>,"""11"""
+$[*].metadata.permissible_values.13,key_only_in_dir2,1,0.4%,HDPCDE8311.json,$[12].metadata.permissible_values.13,<missing>,"""13"""
 $[*].metadata.permissible_values.3:4,key_only_in_dir1,1,0.4%,HDPCDE8311.json,$[17].metadata.permissible_values.3:4,"""4 = I do not need assistance but I need adaptive devices (e.g., bars) or a special setting (e.g., w",<missing>
-$[*].metadata.permissible_values.4 90,key_only_in_dir2,1,0.4%,HDPCDE9816.json,$[4].metadata.permissible_values.4 90,<missing>,"""A sexual orientation that is not listed"""
 $[*].metadata.permissible_values.90,key_only_in_dir1,1,0.4%,HDPCDE9816.json,$[4].metadata.permissible_values.90,"""4 90 = A sexual orientation that is not listed""",<missing>
+$[*].metadata.permissible_values.4 90,key_only_in_dir2,1,0.4%,HDPCDE9816.json,$[4].metadata.permissible_values.4 90,<missing>,"""A sexual orientation that is not listed"""

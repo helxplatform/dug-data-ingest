@@ -42,10 +42,12 @@ The CSV contains the following columns:
 - `filename` - Name of the JSON file
 - `location` - JSON Path indicating where the difference is
 - `difference_type` - Type of difference (see below)
-- `dir1_value` - Value in dug-data-model-2026jan20
-- `dir1_type` - Type of value in dir1
-- `dir2_value` - Value in heal-cdes
-- `dir2_type` - Type of value in dir2
+- `dug_2026jan_value` - Value in dug-data-model-2026jan20
+- `dug_2026jan_type` - Type of value in dug-data-model-2026jan20
+- `heal_cdes_value` - Value in heal-cdes
+- `heal_cdes_type` - Type of value in heal-cdes
+- `dug_2026jan_context` - Parent object (one level up) from dug-data-model-2026jan20
+- `heal_cdes_context` - Parent object (one level up) from heal-cdes
 
 **Difference Types:**
 - `key_only_in_dir1` - Field exists only in dug-data-model-2026jan20
@@ -88,13 +90,22 @@ The top 15 most common patterns all appear in 99-100% of files:
    - heal-cdes: `https://www.nih.gov/sites/default/files/CDEs/2026-01/...`
 
 **After Filtering:**
-- **Remaining differences:** 1,830 (removed 41,304 common differences)
+- **Remaining differences:** 1,827 (removed 46,357 common differences)
 - **Files with non-common differences:** 101 files
 
 These remaining differences are file-specific variations such as:
 - Expanded `permissible_values` (heal-cdes includes all intermediate values)
 - Specific enum value differences
 - Minor field variations unique to certain CDEs
+
+**Context Columns:** Both Pass 2 and Pass 3 CSVs include `dug_2026jan_context` and `heal_cdes_context` columns that show the parent object (one level up from the difference location) from both directories. This makes it much easier to understand differences in context. For example, when comparing `permissible_values.6`, the context shows the entire `permissible_values` object from both files:
+
+```
+dug_2026jan_context: {"0": "No desire", "9": "Strong desire"}
+heal_cdes_context: {"0": "No desire", "1": "1", ..., "9": "Strong desire"}
+```
+
+This immediately reveals that dug-data-model-2026jan20 only defines endpoint values while heal-cdes includes all intermediate values.
 
 ## Key Findings
 
