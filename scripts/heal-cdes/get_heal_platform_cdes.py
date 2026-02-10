@@ -127,7 +127,12 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
         urls = []
         for crf_mapping in crf_mappings:
             if 'instrument' in crf_mapping and 'url' in crf_mapping['instrument']:
-                urls.append(crf_mapping['instrument']['url'])
+                url = crf_mapping['instrument']['url']
+
+                if re.match(r'^https://heal.nih.gov/files/CDEs/20\d{2}-\d{2}/', url):
+                    url = 'https://www.nih.gov/sites/default/files/CDEs/2026-01/' + url[40:]
+
+                urls.append(url)
 
         if len(urls) > 1:
             logging.warning(f"CDE {crf_id} has multiple URLs: {urls}")
