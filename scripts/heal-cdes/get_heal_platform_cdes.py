@@ -151,7 +151,7 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
             'crf_id': crf_id,
             'name': crf_metadata['file_name'],
             'description': '', # TODO: can we get this back somehow.
-            'variable_list': dug_variables,
+            'variable_list': [var['id'] for var in dug_variables],
         }
         if len(urls) > 0:
             dug_crf['action'] = urls[0]
