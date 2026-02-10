@@ -106,7 +106,10 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
                 logging.error(f"Field {field['name']} in CDE {crf_id} has a string for enumLabels \"{enumLabels})\", skipping enumLabels.")
                 enumLabels = {}
 
-            if enumLabels and not enumValues:
+            if not enumLabels and not enumValues:
+                # No need to do anything.
+                pass
+            elif enumLabels and not enumValues:
                 logging.error(f"Field {field['name']} in CDE {crf_id} has inconsistent enumLabels ({enumLabels}) and enumValues ({enumValues}).")
             else:
                 if enumLabels and (len(enumLabels.keys()) != len(enumValues)):
