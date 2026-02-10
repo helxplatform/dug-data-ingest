@@ -119,8 +119,8 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
                                     f"enumValues ({len(enumValues)}: {enumValues}) and "
                                     f"enumLabels ({len(enumLabels)}: {enumLabels}).")
                 else:
-                    dug_variable['metadata']['enum'] = enumValues
-                    dug_variable['metadata']['permissible_values'] = enumLabels
+                    dug_variable['metadata']['enum'] = [value.strip() for value in enumValues]
+                    dug_variable['metadata']['permissible_values'] = {key.strip(): value.strip() for key, value in enumLabels.items()}
 
             dug_variables.append(dug_variable)
 
