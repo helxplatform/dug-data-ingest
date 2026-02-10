@@ -8,6 +8,8 @@
 import json
 import os
 import re
+from pathlib import PurePosixPath
+from urllib.parse import urlparse
 
 import click
 import logging
@@ -149,9 +151,42 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
             'crf_id': crf_id,
             'name': crf_metadata['file_name'],
             'description': '', # TODO: can we get this back somehow.
+            'variable_list': dug_variables,
         }
         if len(urls) > 0:
             dug_crf['action'] = urls[0]
+            dug_crf['urls'] = []
+            for url in urls:
+                urlpath = PurePosixPath(urlparse(url).path)
+                filename = urlpath.name
+                if filename == '':
+                    filename = url
+
+                mime_type = 'application/octet-stream'
+                description = ''
+                drupal_id = ''
+                lang = 'en'
+                lang_full = 'English'
+                match urlpath.suffix.lower():
+                    case '.xlsx':
+                        mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                        description = f"This is the Excel file that describes the {len(dug_variables)} CDEs present in this CRF."
+                        drupal_id = crf_metadata.get('drupal_id', None)
+                    case '.docx':
+                        mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                        description = f"This is the {lang_full} download of the Microsoft Word document containing the questionnaire."
+                    case '.pdf':
+                        mime_type = 'application/pdf'
+                        description = f"This is the {lang_full} download of the PDF document containing the questionnaire."
+
+                dug_crf['urls'].append({
+                    'url': url,
+                    'filename': filename,
+                    'lang': lang,
+                    'mime-type': mime_type,
+                    'description': description or None,
+                    'drupal_id': drupal_id or None,
+                })
 
         # Each CRF entry should be the variables followed by the CRF.
         # The other way around makes more sense, but this will make comparisons easier.
