@@ -27,7 +27,7 @@ def main():
     # Get all unique files
     all_files = sorted(files1 | files2)
 
-    # Write report
+    # Write report (only files missing in one directory or the other)
     report_path = "comparison_pass1_missing_files.csv"
     with open(report_path, 'w', newline='') as f:
         writer = csv.writer(f)
@@ -37,7 +37,10 @@ def main():
             cde_id = filename.replace('.json', '')
             dir1_status = 'Present' if filename in files1 else 'Missing'
             dir2_status = 'Present' if filename in files2 else 'Missing'
-            writer.writerow([cde_id, dir1_status, dir2_status])
+
+            # Only write if missing in at least one directory
+            if dir1_status == 'Missing' or dir2_status == 'Missing':
+                writer.writerow([cde_id, dir1_status, dir2_status])
 
     # Print summary
     print(f"=== Pass 1: Missing Files Report ===")
