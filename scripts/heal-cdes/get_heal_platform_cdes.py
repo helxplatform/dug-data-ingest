@@ -93,6 +93,7 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
                     crf_id,
                 ],
                 'metadata': {
+                    'crf_name': crf_metadata['file_name'].strip(),
                     # TODO: add standards mappings once I figure out how to read it.
                 }
             }
@@ -149,7 +150,7 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
             'id': crf_id,
             'parents': [], # TODO: add HDP IDs here.
             'crf_id': crf_id,
-            'name': crf_metadata['file_name'],
+            'name': crf_metadata['file_name'].strip(),
             'description': '', # TODO: can we get this back somehow.
             'variable_list': [var['id'] for var in dug_variables],
             'metadata': {
