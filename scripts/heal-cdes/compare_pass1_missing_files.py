@@ -24,17 +24,20 @@ def main():
     # Files in both
     in_both = sorted(files1 & files2)
 
+    # Get all unique files
+    all_files = sorted(files1 | files2)
+
     # Write report
     report_path = "comparison_pass1_missing_files.csv"
     with open(report_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Status', 'Filename', 'Directory'])
+        writer.writerow(['HDP CDE ID', 'dug-data-model-2026jan20', 'heal-cdes'])
 
-        for filename in only_in_dir1:
-            writer.writerow(['Only in dug-data-model-2026jan20', filename, str(dir1)])
-
-        for filename in only_in_dir2:
-            writer.writerow(['Only in heal-cdes', filename, str(dir2)])
+        for filename in all_files:
+            cde_id = filename.replace('.json', '')
+            dir1_status = 'Present' if filename in files1 else 'Missing'
+            dir2_status = 'Present' if filename in files2 else 'Missing'
+            writer.writerow([cde_id, dir1_status, dir2_status])
 
     # Print summary
     print(f"=== Pass 1: Missing Files Report ===")
