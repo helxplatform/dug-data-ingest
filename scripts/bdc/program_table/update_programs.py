@@ -566,6 +566,20 @@ class JiraProgramUpdater:
             bdc_utils.save_json(studies_with_desc, self.output_files['upload_chart'])
             bdc_utils.save_json(studies_with_desc, self.output_files['upload_mini'], minify=True)
 
+            # Save YAML format
+            import yaml
+            yaml_file = self.path_manager.get_program_table_path(f"program_table_updated_{self.path_manager.timestamp}.yaml")
+            yaml_data = {'program_study_mappings': studies_with_desc}
+            with open(yaml_file, 'w') as f:
+                yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            self.logger.info(f"Saved YAML format to: {yaml_file}")
+
+            # Save minified YAML format
+            yaml_mini_file = self.path_manager.get_program_table_path(f"program_table_updated_{self.path_manager.timestamp}_minified.yaml")
+            with open(yaml_mini_file, 'w') as f:
+                yaml.dump(yaml_data, f, default_flow_style=True, allow_unicode=True, sort_keys=False)
+            self.logger.info(f"Saved minified YAML format to: {yaml_mini_file}")
+
             if studies_missing_desc:
                 bdc_utils.save_json(studies_missing_desc, self.output_files['missing_desc'])
 
@@ -620,7 +634,143 @@ class JiraProgramUpdater:
             self.logger.info(f"Studies in both Gen3 and Jira but missing description: {len(both_missing)}")
             self.logger.info(f"New studies (empty description) not in Jira: {len(not_in_jira)}")
             self.logger.info(f"Studies in Jira but not in Gen3: {len(missing_from_gen3)}")
-  
+            self.logger.info("")
+            self.logger.info("--- BDC Portal vs Program Table Comparison ---")
+            self.logger.info(f"BDC Portal: {len(bdc_studies)} study records ({len(bdc_unique_accessions)} unique accessions)")
+            self.logger.info(f"Program Table: {len(gen3_studies)} study records ({len(program_table_unique_accessions)} unique accessions)")
+            self.logger.info("")
+            self.logger.info("--- Studies by Program Comparison ---")
+            self.logger.info(f"{'Program':<60} {'BDC':>8} {'PrgTbl':>8} {'Change':>10}")
+            self.logger.info("-" * 88)
+
+            all_programs = sorted(set(bdc_program_counts.keys()) | set(program_table_counts.keys()))
+            for program in all_programs:
+                bdc_count = bdc_program_counts.get(program, 0)
+                pt_count = program_table_counts.get(program, 0)
+                diff = pt_count - bdc_count
+                if diff > 0:
+                    change = f"+{diff}"
+                elif diff < 0:
+                    change = str(diff)
+                else:
+                    change = "0"
+                self.logger.info(f"{program:<60} {bdc_count:>8} {pt_count:>8} {change:>10}")
+
+            self.logger.info("-" * 88)
+            total_diff = len(gen3_studies) - len(bdc_studies)
+            total_change = f"+{total_diff}" if total_diff > 0 else str(total_diff)
+            self.logger.info(f"{'TOTAL':<60} {len(bdc_studies):>8} {len(gen3_studies):>8} {total_change:>10}")
+
+            # --- Record Count Reconciliation (explains the TOTAL change) ---
+            # Load DOI tombstone data
+            doi_tombstone_accessions = set()
+            doi_tombstone_records = []
+            doi_tombstone_file = self.path_manager.get_gen3_path("bdc_studies_excluded_doi_tombstone.json")
+            if Path(doi_tombstone_file).exists():
+                doi_tombstone_records = bdc_utils.load_json(doi_tombstone_file)
+                for s in doi_tombstone_records:
+                    base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                    if base:
+                        doi_tombstone_accessions.add(base)
+
+            # Count BDC records removed due to DOI tombstone
+            bdc_doi_removed = [s for s in bdc_studies
+                               if bdc_utils.extract_base_accession(s.get('Accession', '')) in doi_tombstone_accessions]
+
+            # Count BDC records whose base accession is NOT in Gen3 at all (not in program table and not tombstoned)
+            bdc_not_in_gen3 = [s for s in bdc_studies
+                               if bdc_utils.extract_base_accession(s.get('Accession', '')) not in program_table_unique_accessions
+                               and bdc_utils.extract_base_accession(s.get('Accession', '')) not in doi_tombstone_accessions]
+
+            # Count records added: new Gen3 studies not in BDC
+            pt_new_records = [s for s in gen3_studies
+                              if bdc_utils.extract_base_accession(s.get('Accession', '')) not in bdc_unique_accessions]
+
+            self.logger.info("")
+            self.logger.info("--- Record Count Reconciliation ---")
+            self.logger.info(f"  BDC Portal records (starting point):                     {len(bdc_studies):>6}")
+            self.logger.info(f"  (-) BDC records removed: DOI Tombstone (deprecated):     {len(bdc_doi_removed):>6}")
+            self.logger.info(f"  (-) BDC records removed: Not in Gen3:                    {len(bdc_not_in_gen3):>6}")
+            self.logger.info(f"  (-) Records excluded: Non-phs_id / invalid program:      {len(excluded):>6}")
+            self.logger.info(f"  (+) New records added: Gen3 studies not in BDC:           {len(pt_new_records):>6}")
+            self.logger.info(f"  (+) Records added: Community duplicates from Jira:        {len(additional):>6}")
+            net = len(bdc_studies) - len(bdc_doi_removed) - len(bdc_not_in_gen3) - len(excluded) + len(pt_new_records) + len(additional)
+            self.logger.info(f"  (=) Expected program table records:                      {net:>6}")
+            self.logger.info(f"  (=) Actual program table records:                        {len(gen3_studies):>6}")
+            if net != len(gen3_studies):
+                self.logger.info(f"  (*) Unaccounted difference:                               {len(gen3_studies) - net:>6}")
+
+            # --- Removed: BDC studies removed due to DOI Tombstone ---
+            if bdc_doi_removed:
+                # Group by base accession for cleaner display
+                from collections import defaultdict
+                doi_by_acc = defaultdict(list)
+                for s in bdc_doi_removed:
+                    base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                    doi_by_acc[base].append(s)
+
+                self.logger.info("")
+                self.logger.info(f"--- Removed: DOI Tombstone Studies ({len(bdc_doi_removed)} records, {len(doi_by_acc)} unique accessions) ---")
+                self.logger.info(f"  Note: These studies are deprecated in Gen3 (source of truth) and removed from program table.")
+                self.logger.info(f"  {'Accession':<45} {'Records':>8} {'Program in BDC'}")
+                self.logger.info(f"  {'-'*90}")
+                for acc in sorted(doi_by_acc.keys()):
+                    records = doi_by_acc[acc]
+                    programs = sorted(set(s.get('Program', '') for s in records if s.get('Program')))
+                    self.logger.info(f"  {acc:<45} {len(records):>8} {', '.join(programs)}")
+
+            # --- Removed: BDC studies not found in Gen3 ---
+            if bdc_not_in_gen3:
+                not_in_gen3_by_acc = defaultdict(list)
+                for s in bdc_not_in_gen3:
+                    base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                    not_in_gen3_by_acc[base].append(s)
+
+                self.logger.info("")
+                self.logger.info(f"--- Removed: BDC Studies Not in Gen3 ({len(bdc_not_in_gen3)} records, {len(not_in_gen3_by_acc)} unique accessions) ---")
+                self.logger.info(f"  Note: These are on BDC portal but not in Gen3 (source of truth).")
+                self.logger.info(f"  {'Accession':<45} {'Records':>8} {'Program in BDC'}")
+                self.logger.info(f"  {'-'*90}")
+                for acc in sorted(not_in_gen3_by_acc.keys()):
+                    records = not_in_gen3_by_acc[acc]
+                    programs = sorted(set(s.get('Program', '') for s in records if s.get('Program')))
+                    self.logger.info(f"  {acc:<45} {len(records):>8} {', '.join(programs)}")
+
+            # --- Removed: Excluded non-phs_id / invalid program studies ---
+            if excluded:
+                self.logger.info("")
+                self.logger.info(f"--- Removed: Excluded Studies ({len(excluded)} records) ---")
+                self.logger.info(f"  {'Accession':<45} {'Program':<25} {'Reason'}")
+                self.logger.info(f"  {'-'*100}")
+                for ex in excluded:
+                    self.logger.info(f"  {ex['Accession']:<45} {ex['Invalid Program']:<25} {ex['Reason']}")
+
+            # --- Added: New Gen3 studies not in BDC ---
+            pt_not_in_bdc = program_table_unique_accessions - bdc_unique_accessions
+            if pt_not_in_bdc:
+                self.logger.info("")
+                self.logger.info(f"--- Added: New Studies from Gen3 ({len(pt_new_records)} records, {len(pt_not_in_bdc)} unique accessions) ---")
+                self.logger.info(f"  Note: These are in Gen3 (source of truth) but not yet on the BDC portal.")
+                self.logger.info(f"  {'Accession':<45} {'Program'}")
+                self.logger.info(f"  {'-'*70}")
+                for acc in sorted(pt_not_in_bdc):
+                    prog = ''
+                    for s in gen3_studies:
+                        if bdc_utils.extract_base_accession(s.get('Accession', '')) == acc:
+                            prog = s.get('Program', '')
+                            break
+                    self.logger.info(f"  {acc:<45} {prog}")
+
+            # --- Updated: Program names changed from Jira ---
+            if updated:
+                self.logger.info("")
+                self.logger.info(f"--- Updated: Program Names Changed from Jira ({len(updated)} records) ---")
+                self.logger.info(f"  {'Accession':<45} {'Old Program':<30} {'New Program'}")
+                self.logger.info(f"  {'-'*100}")
+                for u in updated:
+                    self.logger.info(f"  {u['Accession']:<45} {u['Old Program']:<30} {u['New Program']}")
+
+            self.logger.info("")
             self.logger.info("="*80)
             self.logger.info("Processing completed successfully!")
 
