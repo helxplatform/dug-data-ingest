@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Study information management for BDC and Gen3 data operations.
+Core data management for BDC and Gen3 data operations.
 
 This module handles:
 - API interactions with BDC and Gen3
@@ -432,19 +432,22 @@ class StudyMerger:
 
     def filter_by_doi_tombstone(
         self,
-        studies: List[Dict[str, str]]
-    ) -> tuple[List[Dict[str, str]], int]:
+        studies: List[Dict[str, str]],
+        return_excluded: bool = False
+    ) -> tuple:
         """
         Filter out studies where DOI Tombstone is 'True' (string).
 
         Args:
             studies: List of study dictionaries
+            return_excluded: If True, also return list of excluded studies
 
         Returns:
-            Tuple of (filtered_studies, excluded_count)
+            If return_excluded is False: Tuple of (filtered_studies, excluded_count)
+            If return_excluded is True: Tuple of (filtered_studies, excluded_count, excluded_studies)
         """
         filtered_studies = []
-        excluded_count = 0
+        excluded_studies = []
 
         for study in studies:
             doi_tombstone = study.get('DOI Tombstone', '')
@@ -452,14 +455,16 @@ class StudyMerger:
             # Exclude if DOI tombstone is the string 'True'
             # The field is a string in Gen3 metadata, not a boolean
             if doi_tombstone == 'True':
-                excluded_count += 1
+                excluded_studies.append(study)
             else:
                 filtered_studies.append(study)
 
         if self.logger:
-            self.logger.info(f"Filtered by DOI tombstone (exclude 'True'): {len(filtered_studies)} kept, {excluded_count} excluded")
+            self.logger.info(f"Filtered by DOI tombstone (exclude 'True'): {len(filtered_studies)} kept, {len(excluded_studies)} excluded")
 
-        return filtered_studies, excluded_count
+        if return_excluded:
+            return filtered_studies, len(excluded_studies), excluded_studies
+        return filtered_studies, len(excluded_studies)
 
     def filter_by_subjects_count(
         self,
