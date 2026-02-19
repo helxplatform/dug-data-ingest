@@ -100,7 +100,7 @@ def main():
         # Step 3: Filter by DOI tombstone
         logger.info("\nStep 3: Filtering by DOI tombstone...")
         merger = bdc_data_manager.StudyMerger(logger)
-        gen3_no_tombstone, tombstone_filtered = merger.filter_by_doi_tombstone(gen3_raw_studies)
+        gen3_no_tombstone, tombstone_filtered, tombstone_studies = merger.filter_by_doi_tombstone(gen3_raw_studies, return_excluded=True)
 
         # Step 4: Filter by subjects count (COMMENTED OUT FOR TESTING)
         # logger.info("\nStep 4: Filtering by subjects count...")
@@ -131,6 +131,57 @@ def main():
                     f.write(f"{acc}\n")
             logger.info(f"Logged {len(missing_accessions)} missing studies to: {missing_file}")
 
+        # Generate report for BDC studies excluded from program table due to DOI tombstone
+        # Find BDC studies whose accessions match tombstone studies
+        tombstone_accessions = set()
+        for ts in tombstone_studies:
+            acc = ts.get('Accession', '') or ts.get('accession', '') or ts.get('study_id', '')
+            if acc:
+                base_acc = bdc_utils.extract_base_accession(acc)
+                if base_acc:
+                    tombstone_accessions.add(base_acc)
+
+        bdc_excluded = []
+        for bdc_study in bdc_studies:
+            acc = bdc_study.get('Accession', '')
+            base_acc = bdc_utils.extract_base_accession(acc)
+            if base_acc and base_acc in tombstone_accessions:
+                bdc_excluded.append(bdc_study)
+
+        if bdc_excluded:
+            excluded_file = path_manager.get_gen3_path("bdc_studies_excluded_doi_tombstone.json")
+            bdc_utils.save_json(bdc_excluded, excluded_file)
+
+            # Also create a readable log
+            excluded_log = path_manager.get_gen3_path("bdc_studies_excluded_doi_tombstone.log")
+            with open(excluded_log, 'w') as f:
+                f.write("=" * 100 + "\n")
+                f.write("BDC STUDIES EXCLUDED FROM PROGRAM TABLE DUE TO DOI TOMBSTONE\n")
+                f.write("=" * 100 + "\n\n")
+                f.write("These studies exist in the BDC portal but are excluded from the program table\n")
+                f.write("because they have DOI Tombstone = 'True' in Gen3 (deprecated/removed studies).\n\n")
+                f.write(f"Total: {len(bdc_excluded)} study records\n")
+                f.write(f"Unique base accessions: {len(set(bdc_utils.extract_base_accession(s.get('Accession', '')) for s in bdc_excluded))}\n")
+                f.write("-" * 100 + "\n\n")
+
+                # Group by base accession
+                from collections import defaultdict
+                by_acc = defaultdict(list)
+                for s in bdc_excluded:
+                    base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                    by_acc[base].append(s)
+
+                for base_acc in sorted(by_acc.keys()):
+                    studies_list = by_acc[base_acc]
+                    f.write(f"Accession: {base_acc}\n")
+                    f.write(f"  Study Name: {studies_list[0].get('Study Name', 'N/A')}\n")
+                    programs = list(set(s.get('Program', '') for s in studies_list if s.get('Program')))
+                    f.write(f"  Programs in BDC: {', '.join(programs)}\n")
+                    f.write(f"  Reason: DOI Tombstone = True (study deprecated in Gen3)\n")
+                    f.write("-" * 100 + "\n")
+
+            logger.info(f"Logged {len(bdc_excluded)} BDC studies excluded due to DOI tombstone to: {excluded_log}")
+
         # Step 7: Sort by description and clean for program table
         logger.info("\nStep 7: Preparing program table file...")
         sorted_studies = bdc_utils.sort_studies_by_description(merged_studies)
@@ -143,18 +194,19 @@ def main():
 
         # Summary
         logger.info("\n" + "="*80)
-        logger.info("SUMMARY")
+        logger.info("STEP 1 SUMMARY")
         logger.info("="*80)
-        logger.info(f"BDC studies fetched: {len(bdc_studies)}")
+        logger.info("")
+        logger.info("--- Detailed Breakdown ---")
         logger.info(f"Gen3 studies fetched (raw): {len(gen3_raw_studies)}")
-        logger.info(f"Gen3 studies without DOI tombstone: {len(gen3_no_tombstone)}")
-        logger.info(f"Gen3 studies filtered by DOI tombstone only: {tombstone_filtered}")
-        # logger.info(f"Gen3 studies with subjects (>0): {len(gen3_with_subjects)}")
+        logger.info(f"Gen3 studies excluded by DOI tombstone: {tombstone_filtered}")
         logger.info(f"Gen3 studies after filtering: {len(gen3_filtered_studies)}")
         logger.info(f"Merged studies total: {len(merged_studies)}")
-        logger.info(f"Program table entries: {len(cleaned_studies)}")
-        logger.info(f"New studies (Gen3 only): {len(new_accessions)}")
-        logger.info(f"Missing studies (BDC only): {len(missing_accessions)}")
+        logger.info(f"New studies (Gen3 only, not in BDC): {len(new_accessions)}")
+        logger.info(f"Missing studies (BDC only, not in Gen3): {len(missing_accessions)}")
+        logger.info("")
+        logger.info("--- Reports ---")
+        logger.info(f"Excluded studies report: studies_on_gen3_portal/bdc_studies_excluded_doi_tombstone.log")
         logger.info("="*80)
         logger.info(f"\nProgram table file ready: {program_table_file}")
         logger.info("Processing completed successfully!")
