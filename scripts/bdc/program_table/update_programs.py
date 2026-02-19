@@ -62,9 +62,54 @@ class JiraProgramUpdater:
             'comprehensive': self.path_manager.get_gen3_path(f"jira_studies_not_in_gen3_report_{timestamp}.log")
         }
 
+    def _find_column(self, df: pd.DataFrame, *names: str) -> str:
+        """
+        Find a column by trying multiple possible names.
+        Handles both old format (e.g., 'Accession') and new Jira export format
+        (e.g., 'Custom field (Accession)').
+
+        Args:
+            df: DataFrame to search
+            *names: Possible column name variations to try
+
+        Returns:
+            The actual column name found, or empty string if not found
+        """
+        for name in names:
+            # Try exact match
+            if name in df.columns:
+                return name
+            # Try with 'Custom field (...)' prefix (new Jira export format)
+            custom_field_name = f'Custom field ({name})'
+            if custom_field_name in df.columns:
+                return custom_field_name
+        return ''
+
+    def _find_community_columns(self, df: pd.DataFrame) -> List[str]:
+        """
+        Find all Community columns in the DataFrame.
+        Handles both old format and new Jira export format with duplicate columns.
+
+        Args:
+            df: DataFrame to search
+
+        Returns:
+            List of community column names found
+        """
+        community_cols = []
+        for col in df.columns:
+            col_lower = col.lower()
+            # Match 'Community', 'Community.1', 'Custom field (Community)', etc.
+            if col_lower == 'community' or col_lower.startswith('community.'):
+                community_cols.append(col)
+            elif 'custom field (community)' in col_lower:
+                community_cols.append(col)
+        return community_cols
+
     def load_jira_data(self) -> Tuple[Dict[str, Dict[str, str]], set]:
         """
         Load and parse Jira data file.
+        Supports both old CSV format and new Jira export format with 'Custom field (...)' columns.
 
         Returns:
             Tuple of (jira_dict, jira_accessions)
@@ -81,17 +126,31 @@ class JiraProgramUpdater:
 
         # Load data
         df = pd.read_csv(self.jira_file) if file_ext == '.csv' else pd.read_excel(self.jira_file)
-        df_valid = df.dropna(subset=['Accession'])
+
+        # Find column names (handles both old and new Jira formats)
+        accession_col = self._find_column(df, 'Accession')
+        program_col = self._find_column(df, 'Program(s)')
+        gen3_program_col = self._find_column(df, 'Gen3 Program Name')
+        status_col = self._find_column(df, 'Status')
+        summary_col = self._find_column(df, 'Summary')
+
+        if not accession_col:
+            raise ValueError("Could not find Accession column in Jira file")
+
+        self.logger.info(f"Column mapping: Accession='{accession_col}', Program(s)='{program_col}', "
+                        f"Gen3 Program Name='{gen3_program_col}', Status='{status_col}', Summary='{summary_col}'")
+
+        df_valid = df.dropna(subset=[accession_col])
 
         jira_dict = {}
         jira_accessions = set()
 
-        # Find all Community columns (pandas renames duplicates to Community, Community.1, Community.2)
-        community_cols = [col for col in df.columns if col == 'Community' or col.startswith('Community.')]
+        # Find all Community columns
+        community_cols = self._find_community_columns(df)
         self.logger.info(f"Found {len(community_cols)} Community columns in Jira data: {community_cols}")
 
         for _, row in df_valid.iterrows():
-            accession = str(row['Accession']).strip()
+            accession = str(row[accession_col]).strip()
             base_acc = bdc_utils.extract_base_accession(accession)
 
             if base_acc:
@@ -103,11 +162,24 @@ class JiraProgramUpdater:
                     val = row.get(col, '')
                     community_values.append(str(val).strip() if pd.notna(val) else '')
 
+                # Get program name from Program(s) field, or fall back to first Community value
+                # (In some Jira exports, Community column contains the program names)
+                program_name = ''
+                if program_col:
+                    program_name = str(row.get(program_col, '')).strip() if pd.notna(row.get(program_col, '')) else ''
+
+                # If no Program(s) value, use first Community value as program name
+                if not program_name and community_values:
+                    first_community = community_values[0]
+                    if first_community:
+                        program_name = first_community
+
                 jira_dict[base_acc] = {
                     'full_accession': accession,
-                    'program_name': str(row.get('Program(s)', '')).strip() if pd.notna(row.get('Program(s)', '')) else '',
-                    'status': str(row.get('Status', '')).strip() if pd.notna(row.get('Status', '')) else '',
-                    'summary': str(row.get('Summary', '')),
+                    'program_name': program_name,  # Only from Program(s) field, not Gen3 Program Name
+                    'gen3_program_name': str(row.get(gen3_program_col, '')).strip() if gen3_program_col and pd.notna(row.get(gen3_program_col, '')) else '',
+                    'status': str(row.get(status_col, '')).strip() if status_col and pd.notna(row.get(status_col, '')) else '',
+                    'summary': str(row.get(summary_col, '')) if summary_col else '',
                     'community': community_values[0] if len(community_values) > 0 else '',
                     'community1': community_values[1] if len(community_values) > 1 else '',
                     'community2': community_values[2] if len(community_values) > 2 else ''
@@ -141,21 +213,50 @@ class JiraProgramUpdater:
     def update_study_programs(
         self,
         studies: List[Dict[str, str]],
-        jira_dict: Dict[str, Dict[str, str]]
+        jira_dict: Dict[str, Dict[str, str]],
+        valid_programs_map: Dict[str, str] = None
     ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], List[Dict[str, str]]]:
         """
         Update program names for studies based on Jira data.
+        Creates duplicate entries for studies with multiple communities.
+        Only uses program names that exist in BDC portal.
 
         Args:
             studies: List of Gen3 studies
             jira_dict: Jira data dictionary
+            valid_programs_map: Dict mapping lowercase program names to original case
 
         Returns:
             Tuple of (additional_studies, updated_records, not_in_jira_records)
         """
+        if valid_programs_map is None:
+            valid_programs_map = {}
+
+        # Programs to exclude entirely (not map to Extramural Research)
+        excluded_program_names = {'tutorial', 'no program', ''}
+
+        def get_valid_program(prog_name: str) -> tuple:
+            """
+            Get valid BDC program name.
+            Returns (program_name, should_exclude) tuple.
+            - If valid BDC program: returns (program_name, False)
+            - If 'tutorial' or empty: returns (None, True) - exclude
+            - If other invalid program: returns ('Extramural Research', False) - map to Extramural
+            """
+            if not prog_name or prog_name.lower() in excluded_program_names:
+                return None, True  # Exclude tutorial and No Program
+            # Check if program exists in BDC (case-insensitive)
+            prog_lower = prog_name.lower()
+            if prog_lower in valid_programs_map:
+                return valid_programs_map[prog_lower], False
+            # Not a valid BDC program - map to Extramural Research
+            self.logger.info(f"Program '{prog_name}' not in BDC, using 'Extramural Research'")
+            return 'Extramural Research', False
+
         additional_studies = []
         updated_records = []
         not_in_jira = []
+        excluded_studies = []  # Studies with excluded programs (tutorial, No Program)
 
         for study in list(studies):
             accession = study.get('Accession', '')
@@ -163,18 +264,65 @@ class JiraProgramUpdater:
             current_prog = study.get('Program', '')
             current_desc = study.get('Description', '')
 
+            # Check if accession is in phs_id format
+            is_phs_id = accession.startswith('phs')
+
+            # Validate current program
+            if valid_programs_map:
+                validated_prog, should_exclude = get_valid_program(current_prog)
+                # For non-phs_id studies, exclude if they would be mapped to Extramural Research
+                if not is_phs_id and validated_prog == 'Extramural Research':
+                    should_exclude = True
+                if should_exclude:
+                    # Exclude tutorial, No Program, and non-phs_id studies defaulting to Extramural Research
+                    reason = 'Non-phs_id study excluded from Extramural Research' if not is_phs_id else 'Program excluded (tutorial or No Program)'
+                    excluded_studies.append({
+                        'Accession': accession,
+                        'Study Name': study.get('Study Name', ''),
+                        'Invalid Program': current_prog or 'No Program',
+                        'Reason': reason
+                    })
+                    self.logger.info(f"Excluding {accession}: {reason}")
+                    studies.remove(study)
+                    continue
+                elif validated_prog != current_prog:
+                    study['Program'] = validated_prog
+                    current_prog = validated_prog
+
             if base_acc and base_acc in jira_dict:
                 jira_info = jira_dict[base_acc]
-                programs = [p.strip() for p in jira_info['program_name'].split(',') if p.strip()]
 
-                # Add Community fields from Jira
-                study['Community'] = jira_info.get('community', '')
-                study['Community1'] = jira_info.get('community1', '')
-                study['Community2'] = jira_info.get('community2', '')
+                # Get all non-empty community values (community names are program names)
+                communities = [c for c in [
+                    jira_info.get('community', ''),
+                    jira_info.get('community1', ''),
+                    jira_info.get('community2', '')
+                ] if c]
 
-                if programs:
-                    # Update first program
-                    first_prog, first_desc = self.get_program_info(studies, programs[0])
+                # Get program name: first from Program(s), then fall back to first Community
+                program_name = jira_info.get('program_name', '').strip()
+                if not program_name and communities:
+                    program_name = communities[0]
+
+                # Validate program name against BDC programs
+                if program_name:
+                    validated_prog, should_exclude = get_valid_program(program_name)
+                    # For non-phs_id studies, exclude if they would be mapped to Extramural Research
+                    if not is_phs_id and validated_prog == 'Extramural Research':
+                        should_exclude = True
+                    if should_exclude:
+                        program_name = None  # Don't update program if it's tutorial/empty
+                    else:
+                        program_name = validated_prog
+
+                # Set all community fields from Jira as-is
+                study['Community'] = communities[0] if len(communities) > 0 else ''
+                study['Community1'] = communities[1] if len(communities) > 1 else ''
+                study['Community2'] = communities[2] if len(communities) > 2 else ''
+
+                if program_name:
+                    # Update program name from Jira (validated against BDC programs)
+                    first_prog, first_desc = self.get_program_info(studies, program_name)
                     if not first_desc and current_desc:
                         first_desc = current_desc
 
@@ -193,42 +341,34 @@ class JiraProgramUpdater:
                             'Jira Status': jira_info['status'],
                             'Jira Summary': jira_info['summary'],
                             'Had Description': 'Yes' if current_desc.strip() else 'No',
-                            'Multi Program': 'Yes' if len(programs) > 1 else 'No'
+                            'Multi Program': 'Yes' if len(communities) > 1 else 'No'
                         })
-                        self.logger.info(f"Updated {accession}: '{current_prog}' -> '{first_prog}'")
+                        self.logger.info(f"Updated {accession}: Program '{current_prog}' -> '{first_prog}' (primary community: {communities[0] if communities else 'N/A'})")
 
-                    # Handle additional programs (create duplicates)
-                    for idx, prog_name in enumerate(programs[1:], start=2):
-                        prog, prog_desc = self.get_program_info(studies, prog_name)
-                        if not prog_desc and current_desc:
-                            prog_desc = current_desc
-
+                # Handle additional communities (create duplicates)
+                # This duplicates the study for each additional community
+                # Community values are validated as program names - skip if excluded (tutorial/empty)
+                if len(communities) > 1:
+                    for idx, community in enumerate(communities[1:], start=2):
+                        # Validate community as program name
+                        validated_community_prog, should_exclude = get_valid_program(community)
+                        if should_exclude:
+                            self.logger.info(f"Skipping community duplicate {accession}: '{community}' (tutorial/empty)")
+                            continue
                         new_study = study.copy()
-                        new_study['Program'] = prog
+                        new_study['Program'] = validated_community_prog
+                        # Get description for this program
+                        _, prog_desc = self.get_program_info(studies, validated_community_prog)
                         if prog_desc:
                             new_study['Description'] = prog_desc
-
                         additional_studies.append(new_study)
-                        updated_records.append({
-                            'Accession': accession,
-                            'Study Name': new_study.get('Study Name', ''),
-                            'Old Program': current_prog,
-                            'New Program': prog,
-                            'Old Description': current_desc,
-                            'New Description': prog_desc,
-                            'Jira Status': jira_info['status'],
-                            'Jira Summary': jira_info['summary'],
-                            'Had Description': 'Yes' if current_desc.strip() else 'No',
-                            'Multi Program': f'Yes (duplicate {idx}/{len(programs)})'
-                        })
-                        self.logger.info(f"Created duplicate {accession}: '{prog}' (program {idx}/{len(programs)})")
+                        self.logger.info(f"Added {accession}: Program '{current_prog}' -> '{validated_community_prog}' (community {idx}/{len(communities)}: {community})")
 
             else:
-                # Study not in Jira - add empty Community fields for consistency
-                if 'Community' not in study:
-                    study['Community'] = ''
-                    study['Community1'] = ''
-                    study['Community2'] = ''
+                # Study not in Jira - Community stays empty (Community comes from Jira only)
+                study['Community'] = ''
+                study['Community1'] = ''
+                study['Community2'] = ''
 
                 if not current_desc or not current_desc.strip():
                     # Track new study not in Jira
@@ -238,7 +378,7 @@ class JiraProgramUpdater:
                         'Current Program': current_prog
                     })
 
-        return additional_studies, updated_records, not_in_jira
+        return additional_studies, updated_records, not_in_jira, excluded_studies
 
     def fill_descriptions(self, studies: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
@@ -361,6 +501,20 @@ class JiraProgramUpdater:
     def run(self) -> int:
         """Execute the full update process."""
         try:
+            # Load BDC studies first to get valid program names
+            bdc_studies_file = self.path_manager.get_bdc_path("bdc_studies.json")
+            bdc_studies = bdc_utils.load_json(bdc_studies_file)
+
+            # Get valid program names from BDC (case-insensitive matching)
+            valid_programs = set()
+            valid_programs_map = {}  # lowercase -> original case
+            for s in bdc_studies:
+                prog = s.get('Program', '')
+                if prog:
+                    valid_programs.add(prog)
+                    valid_programs_map[prog.lower()] = prog
+            self.logger.info(f"Valid BDC programs: {sorted(valid_programs)}")
+
             # Load data
             self.logger.info("Loading Gen3 studies data...")
             gen3_studies = bdc_utils.load_json(self.input_file)
@@ -373,8 +527,10 @@ class JiraProgramUpdater:
 
             # Update programs
             self.logger.info("\nUpdating program names from Jira...")
-            additional, updated, not_in_jira = self.update_study_programs(gen3_studies, jira_dict)
+            additional, updated, not_in_jira, excluded = self.update_study_programs(gen3_studies, jira_dict, valid_programs_map)
             gen3_studies.extend(additional)
+            if excluded:
+                self.logger.info(f"Excluded {len(excluded)} studies with invalid programs")
 
             # Save program_table.json with Community fields (before filtering)
             program_table_with_community = self.path_manager.get_program_table_path("program_table.json")
@@ -396,7 +552,8 @@ class JiraProgramUpdater:
             missing_from_gen3 = [
                 {
                     'Accession': jira_dict[base_acc]['full_accession'],
-                    'Gen3 Program Name': jira_dict[base_acc]['program_name'],
+                    'Gen3 Program Name': jira_dict[base_acc].get('gen3_program_name', '') or jira_dict[base_acc]['program_name'],
+                    'Program(s)': jira_dict[base_acc]['program_name'],
                     'Status': jira_dict[base_acc]['status'],
                     'Summary': jira_dict[base_acc]['summary']
                 }
@@ -420,19 +577,52 @@ class JiraProgramUpdater:
 
             self.save_comprehensive_report(updated, not_in_jira, missing_from_gen3)
 
-            # Summary
+            # Load BDC studies for final comparison
+            bdc_studies_file = self.path_manager.get_bdc_path("bdc_studies.json")
+            bdc_studies = bdc_utils.load_json(bdc_studies_file)
+
+            # Calculate unique accessions
+            from collections import Counter
+            bdc_unique_accessions = set()
+            for s in bdc_studies:
+                base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                if base:
+                    bdc_unique_accessions.add(base)
+
+            program_table_unique_accessions = set()
+            for s in gen3_studies:
+                base = bdc_utils.extract_base_accession(s.get('Accession', ''))
+                if base:
+                    program_table_unique_accessions.add(base)
+
+            # Count studies by program
+            bdc_program_counts = Counter()
+            for s in bdc_studies:
+                program = s.get('Program', '') or 'No Program'
+                bdc_program_counts[program] += 1
+
+            program_table_counts = Counter()
+            for s in gen3_studies:
+                program = s.get('Program', '') or 'No Program'
+                program_table_counts[program] += 1
+
+            # Final Summary with comparison
             self.logger.info("\n" + "="*80)
-            self.logger.info("SUMMARY")
+            self.logger.info("FINAL SUMMARY")
             self.logger.info("="*80)
-            self.logger.info(f"Total Gen3 studies processed: {len(studies_with_desc)}")
+            self.logger.info("")
+            self.logger.info("--- Processing Stats ---")
+            self.logger.info(f"Total studies in final program table: {len(gen3_studies)}")
+            self.logger.info(f"Studies excluded (invalid program): {len(excluded)}")
             self.logger.info(f"Studies with program names updated: {len(updated)}")
             self.logger.info(f"Descriptions filled from same program: {len(filled)}")
             self.logger.info(f"Studies still missing description: {len(studies_missing_desc)}")
             self.logger.info(f"Studies in both Gen3 and Jira but missing description: {len(both_missing)}")
             self.logger.info(f"New studies (empty description) not in Jira: {len(not_in_jira)}")
             self.logger.info(f"Studies in Jira but not in Gen3: {len(missing_from_gen3)}")
+  
             self.logger.info("="*80)
-            self.logger.info("\nProcessing completed successfully!")
+            self.logger.info("Processing completed successfully!")
 
             return 0
 
