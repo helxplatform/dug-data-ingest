@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 import csv
 import json
 from dug import utils as utils
-from _base import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE
+from _base import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE, VARIABLE_TYPE
 
 logger = logging.getLogger('dug')
 
@@ -21,10 +21,11 @@ HEAL_STUDY_GUID_TYPES = [
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
 
-def get_study_cde_mappings(cde_dir:Path):
+def get_cde_mappings(cde_dir:Path):
     
     all_cde_files = list(cde_dir.glob("*.dug.json"))
     study_cde_mappings = dict()
+    variable_cde_mappings = dict()
     for cde_file in all_cde_files:
         with open(cde_file, "r") as f:
             json_obj = json.load(f)
@@ -33,7 +34,8 @@ def get_study_cde_mappings(cde_dir:Path):
             if len(section_obj) !=1:
                 print(f"Something wrong with CDE: {cde_file}")
             section = section_obj[0] 
-            section_id = section.id.split(":")[1]
+            section_id_splits = section.id.split(":")
+            section_id = section_id_splits[0] if len(section_id_splits) == 1 else section.id.split(":")[1]
             study_mappings = section.metadata['study_mappings']
             if len(study_mappings) > 0:
                 studies = list(study_mappings.keys())  
@@ -42,7 +44,19 @@ def get_study_cde_mappings(cde_dir:Path):
                         study_cde_mappings[study].append(section_id)
                     else:
                         study_cde_mappings[study] = [section_id]
-    return study_cde_mappings
+            cdes = [e for e in elements if e.type==VARIABLE_TYPE]
+            for cde in cdes:
+                # Find if there are mappings
+                # variable_cde_mappings will be a dict of dicts, with HDPID = dict of variable -> cde mapping
+                # variables are mapped to a single CDE.
+                mappings = cde.metadata['study_variable_mappings'] if 'study_variable_mappings' in cde.metadata else {}
+                for hdpid in mappings:
+                    if hdpid not in variable_cde_mappings:
+                        variable_cde_mappings[hdpid] = dict()
+                    variable_mappings = {v:{"measure":cde.id, "cde":section_id}  for v in mappings[hdpid]}
+                    variable_cde_mappings[hdpid] = {**variable_cde_mappings[hdpid], **variable_mappings}
+    print(variable_cde_mappings)
+    return study_cde_mappings, variable_cde_mappings
 
 def translate_data_dictionary_field(field):
     """
@@ -227,26 +241,75 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         }
         return study_details
 
-def transform_dds_to_dug(vlmd_dds, study_id, study_type, research_program=None):
+def guess_data_type(values):
+    """
+    Guess the data type of a list of values (usually strings from JSON).
+    Returns: "integer", "number", "boolean", or "string"
+    """
+    if not values:
+        return "string"
+    is_int = True
+    is_float = True
+    is_bool = True
+    for v in values:
+        v_str = str(v).strip().lower()
+        # Check for boolean
+        if v_str not in {"true", "false", "0", "1"}:
+            is_bool = False
+        # Check for integer
+        try:
+            int(v_str)
+        except ValueError:
+            is_int = False
+        # Check for float
+        try:
+            float(v_str)
+        except ValueError:
+            is_float = False
+    if is_bool:
+        return "boolean"
+    if is_int:
+        return "integer"
+    if is_float:
+        return "number"
+    return "string"
+
+def transform_dds_to_dug(vlmd_dds, study_id, research_program=None, research_network=None,vlmd_cde_mappings = {}):
     dug_variables = []
     for vlmd_dd in vlmd_dds:
         for variable in vlmd_dd.get('fields', []):
             # print(variable)
+            data_type = variable["type"] if "type" in variable else "string"
+            metadata = {}
+            if "constraints" in variable:
+                ## Assuming that variable['constraints'] is a dict, copy over to DugElement's metadata field.
+                ## This should copy fields like `minimum`, `maximum`, `required`, `enum`, `pattern`, `maxLenth`
+                metadata = variable["constraints"] ## This is assuming that variable['constraints'] is a dict
+                if "enumLabels" in variable or "encodings" in variable:
+                    metadata["permissible_values"] = variable["enumLabels"] if "enumLabels" in variable else variable["encodings"]
+                    # This probably needs to be refined as the permissible values can also encode a boolean, or integer, etc., but let's think about that later.
+                    if "type" not in variable or len(variable["type"]) == 0:
+                        data_type = "enum" 
+                elif "maximum" in metadata and "minimum" in metadata:
+                    data_type = "number"
+                elif "enum" in metadata and ("type" not in variable or len(variable["type"]) == 0):
+                    data_type = guess_data_type(metadata["enum"])
+
             elem = DugVariable(id=study_id+':'+variable['name'],
                               name=variable['name'],
                               description=variable['description'],
-                              programs=[study_type, research_program] if research_program else [study_type] ,
-                              parents=[study_id, variable.get('section', '')],
-                              data_type=variable.get('type', 'string'),
+                              programs=[research_program] if research_program else [],
+                              parents=[k for k in (study_id, variable.get('section', '')) if len(k) > 0],
+                              data_type=data_type,
                               is_cde=False
                               ) ## This would be changed to study id
-            if 'constraints' in variable:
-                ## Assuming that variable['constraints'] is a dict, copy over to DugElement's metadata field.
-                ## This should copy fields like `minimum`, `maximum`, `required`, `enum`, `pattern`, `maxLenth`
-                elem.metadata = variable['constraints'] ## This is assuming that variable['constraints'] is a dict
-                if 'enumLabels' in variable:
-                    elem.metadata['permissible_values'] = variable['enumLabels']
-
+            if research_network:
+                elem.add_tag("Research Network", research_network)
+            if research_program:
+                elem.add_tag("Research Program", research_program)
+            if study_id in vlmd_cde_mappings and variable['name'] in vlmd_cde_mappings[study_id]:
+                metadata["cde_mapping"] = vlmd_cde_mappings[study_id][variable['name']]
+            elem.metadata = metadata
             dug_variables.append(elem)
     return dug_variables
 
@@ -259,7 +322,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, study_type, research_program=None):
 @click.option(
     '--hdp-to-study-type-mappings-csv',
     default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'data/ResearchProgramsMappedToHDPID_Sept2025.csv'),
+                         'data/ResearchNetworksResearchProgramsMappedToHDPID_Feb2026.csv'),
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help='The CSV file that maps HDP study IDs to HEAL study types.')
 @click.option(
@@ -299,11 +362,12 @@ def get_heal_studies(output, mds_metadata_endpoint,
     with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
         mappings_reader = csv.DictReader(mappingsf)
         for mapping in mappings_reader:
-            hdp_to_study_type_mappings[mapping['HDPID']] = {
-                'research_program': mapping['HEAL Research Program'],
-                'study_type': mapping['HEAL Study Type'],
-            }
-    study_cde_mappings = get_study_cde_mappings(Path(cde_location))
+            if mapping['study_type'] in ['HDP', 'CTN']:
+                hdp_to_study_type_mappings[mapping['key']] = {
+                    'research_program': 'Clinical Trials Network' if mapping['study_type'] == 'CTN' else  (None if mapping["Research Program"] == '-' else mapping["Research Program"]),
+                    'research_network': None if mapping["Research Network"] == '-' else ('Clinical Trials Network' if mapping["Research Network"] == 'CTN' else mapping["Research Network"]),
+                }
+    study_cde_mappings, variable_cde_mappings = get_cde_mappings(Path(cde_location))
     metadata_ids = []
     for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
         result = requests.get(mds_metadata_endpoint, params={
@@ -325,11 +389,13 @@ def get_heal_studies(output, mds_metadata_endpoint,
             if study_details is None:
                 logger.debug(f"Metadata for Study {sid} is not available, Skipping!")
                 continue
-            study_type = hdp_to_study_type_mappings[study_details['id']]['study_type'] if study_details['id'] in hdp_to_study_type_mappings else "HEAL Studies"
-            research_program = hdp_to_study_type_mappings[study_details['id']]['research_program'] if study_type == 'HEAL Research Program' else None
-
-            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], study_details['id'], study_type, research_program)
-            
+            research_program = hdp_to_study_type_mappings[study_details['id']]['research_program'] if study_details['id'] in hdp_to_study_type_mappings else None
+            research_network = hdp_to_study_type_mappings[study_details['id']]['research_network'] if study_details['id'] in hdp_to_study_type_mappings else None
+            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], 
+                                                 study_details['id'], 
+                                                 research_program = research_program, 
+                                                 research_network=research_network, 
+                                                 vlmd_cde_mappings = variable_cde_mappings)
             metadata = {}
             if study_details['project_start_date'] is not None and len(study_details['project_start_date']) > 0:
                 metadata['Project Start Date'] = study_details['project_start_date']
@@ -343,12 +409,12 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 metadata['Data Availability'] = study_details['data_availability']
             if len(study_details['repositories']) > 0:
                 metadata['Data Package Links'] = study_details['repositories']
-
+            print(study_details['id'])
             study = DugStudy(
                         id=study_details['id'],
                         name=study_details['study_name'],
                         description=study_details['description'],
-                        programs=[study_type, research_program] if research_program else [study_type],
+                        programs=[research_program] if research_program else [],
                         parents=[],
                         action = study_details['action'],
                         abstract=study_details['abstract'],
@@ -357,8 +423,12 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         section_list = study_cde_mappings[study_details['id']] if study_details['id'] in study_cde_mappings else [],
                         metadata = metadata
                         )
+            if research_program:
+                study.add_tag("Research Program", research_program)
+            if research_network:
+                study.add_tag("Research Network", research_network)
+
             logger.debug(study)
-            # elements = [study]
             if dug_variables is None:
                 elements = [study]
             else:

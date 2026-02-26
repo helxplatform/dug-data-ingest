@@ -31,6 +31,7 @@ class DugElement(BaseModel):
     search_terms: List[str] = Field(default_factory=list)
     optional_terms: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    tags: List[Dict[str, str]] = Field(default_factory=list)
     
     @computed_field
     @property
@@ -69,6 +70,7 @@ class DugElement(BaseModel):
             'metadata': self.metadata,
             'parents': self.parents,
             'programs': self.programs,
+            'tags': self.tags,
             'identifiers': (list(self.concepts.keys()) if self.concepts else []),
         }
         return es_elem
@@ -102,6 +104,9 @@ class DugElement(BaseModel):
     def clean(self):
         self.search_terms = sorted(list(set(self.search_terms)))
         self.optional_terms = sorted(list(set(self.optional_terms)))
+
+    def add_tag(self, category, value):
+        self.tags.append({"category": category, "value":value})
 
     def __str__(self):
         return json.dumps(self.jsonable(), indent=2, default=utils.complex_handler)
