@@ -16,6 +16,12 @@ docker build -t dug-data-ingest .
 
 ## Running Scripts Locally
 
+To work with the Python scripts, set up and activate a local virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
 Set required environment variables, then run the ingest script directly:
 
 ```bash
