@@ -21,6 +21,7 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
 
     current_heading = None
     current_body: list[str] = []
+    pre_heading_body: list[str] = []
 
     def flush(heading: str, body: list[str]) -> None:
         base = _slug(heading)
@@ -50,10 +51,15 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
             current_heading = para.text.strip()
             current_body = []
         else:
-            if current_heading is not None and para.text.strip():
-                current_body.append(para.text.strip())
+            if para.text.strip():
+                if current_heading is not None:
+                    current_body.append(para.text.strip())
+                else:
+                    pre_heading_body.append(para.text.strip())
 
     if current_heading is not None:
         flush(current_heading, current_body)
+    elif pre_heading_body:
+        flush(asset_path.name, pre_heading_body)
 
     return ExtractResult(sections=[], variables=variables, replace_file_section=False)
