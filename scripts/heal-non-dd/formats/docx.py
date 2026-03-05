@@ -37,8 +37,14 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
             "parent_type": "section",
         })
 
-    for para in doc.paragraphs:
+    def is_heading(para) -> bool:
         if para.style.name.startswith("Heading"):
+            return True
+        runs = [r for r in para.runs if r.text.strip()]
+        return bool(runs) and all(r.bold for r in runs)
+
+    for para in doc.paragraphs:
+        if is_heading(para):
             if current_heading is not None:
                 flush(current_heading, current_body)
             current_heading = para.text.strip()
