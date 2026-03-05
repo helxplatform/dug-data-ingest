@@ -37,9 +37,9 @@ def main(input_dir: str, output_dir: str) -> None:
             raw = yaml.safe_load(f)
 
         study_id = raw["id"]
-        title = raw["title"]
+        study_name = raw["name"]
         description = raw.get("description", "")
-        metadata = {k: v for k, v in raw.items() if k not in ("id", "title", "description")}
+        metadata = {k: v for k, v in raw.items() if k not in ("id", "name", "description")}
 
         all_objects = []
         assets_dir = study_dir / "assets"
@@ -71,7 +71,7 @@ def main(input_dir: str, output_dir: str) -> None:
 
         study = {
             "id": study_id,
-            "name": title,
+            "name": study_name,
             "description": description,
             "type": "study",
             "section_list": [o["id"] for o in all_objects if o["type"] == "section"],
