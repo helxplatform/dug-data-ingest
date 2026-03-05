@@ -66,7 +66,7 @@ helm upgrade --install dug-data-ingest-bdc charts/dug-data-ingest \
 ### Ingest Pipeline Pattern
 
 Each ingest follows this pattern:
-1. Download data from source API (Gen3, PicSure, HEAL MDS, etc.) into `/data/`
+1. Download data from source API (Gen3, PicSure, HEAL Platform MDS, etc.) into `/data/`
 2. Generate dbGaP-formatted XML files if needed
 3. Upload to LakeFS using `rclone sync` (configured via env vars)
 4. Commit the branch via LakeFS REST API (`curl -X POST .../commits`)
@@ -80,7 +80,7 @@ Each ingest follows this pattern:
   - `xml_generator.py` — generates dbGaP-format XML from combined PicSure + Gen3 data
   - `run_dbgap_xml_gen_fallback.py` — orchestrates dbGaP download with XML generation fallback
 - `scripts/heal/` — HEAL Platform ingest
-  - `ingest.sh` — downloads from HEAL MDS, uploads to multiple LakeFS repos
+  - `ingest.sh` — downloads from HEAL Platform MDS, uploads to multiple LakeFS repos
   - `get_heal_platform_mds_data_dicts.py` — fetches data dictionaries from HEAL Platform MDS API
 - `scripts/lakefs/` — Utility scripts for LakeFS
   - `generate_lakefs_dbgap_xml_index.py` — indexes dbGaP XML files across LakeFS repositories
