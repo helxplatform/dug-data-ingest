@@ -6,9 +6,13 @@ Usage:
 """
 import json
 import pathlib
+import sys
 
 import click
 import yaml
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from formats import ExtractResult, get_handler
 
 
 @click.command()
@@ -37,32 +41,44 @@ def main(input_dir: str, output_dir: str) -> None:
         description = raw.get("description", "")
         metadata = {k: v for k, v in raw.items() if k not in ("id", "title", "description")}
 
-        sections = []
+        all_objects = []
         assets_dir = study_dir / "assets"
         if assets_dir.exists():
             for asset_file in sorted(assets_dir.rglob("*")):
                 if not asset_file.is_file():
                     continue
                 section_id = str(pathlib.Path(study_dir.name) / asset_file.relative_to(study_dir))
-                sections.append({
-                    "id": section_id,
-                    "name": asset_file.name,
-                    "description": asset_file.name,
-                    "type": "section",
-                    "parents": [study_id],
-                    "parent_type": "study",
-                })
+                handler = get_handler(asset_file.suffix)
+                if handler:
+                    result = handler(asset_file, section_id, study_id)
+                else:
+                    result = ExtractResult(sections=[], variables=[], replace_file_section=False)
+
+                if not result.replace_file_section:
+                    file_section = {
+                        "id": section_id,
+                        "name": asset_file.name,
+                        "description": asset_file.name,
+                        "type": "section",
+                        "parents": [study_id],
+                        "parent_type": "study",
+                        "variable_list": [v["id"] for v in result.variables],
+                    }
+                    all_objects.append(file_section)
+
+                all_objects.extend(result.sections)
+                all_objects.extend(result.variables)
 
         study = {
             "id": study_id,
             "name": title,
             "description": description,
             "type": "study",
-            "section_list": [s["id"] for s in sections],
+            "section_list": [o["id"] for o in all_objects if o["type"] == "section"],
             "metadata": metadata,
         }
 
-        objects = sections + [study]
+        objects = all_objects + [study]
 
         out_file = output_path / f"{study_id}.json"
         with out_file.open("w") as f:

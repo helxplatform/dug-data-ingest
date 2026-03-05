@@ -14,6 +14,10 @@ pyyaml
 pandas
 numpy
 
+# Needed for Word and Excel format handlers.
+python-docx
+openpyxl
+
 # Needed for PicSure API integration.
 ipython
 git+https://github.com/hms-dbmi/pic-sure-python-client.git
