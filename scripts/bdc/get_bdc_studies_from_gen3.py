@@ -192,6 +192,12 @@ def make_csv_dict_from_study_info(study_info):
     if not 'gen3_discovery' in study_info:
         return {}
     gen3_discovery = study_info['gen3_discovery']
+
+    # Check if study_id exists before accessing it
+    if 'study_id' not in gen3_discovery:
+        logging.warning("Skipping study_info without study_id: %s",
+                        study_info.get('_guid', 'unknown'))
+        return None
     study_id = gen3_discovery['study_id']
 
     (study_name, name, short_name) = get_study_name(gen3_discovery)
@@ -340,6 +346,8 @@ def make_kgx_lists(study_info_list):
         if not 'gen3_discovery' in study_info:
             continue
         gen3_discovery = study_info['gen3_discovery']
+        if 'study_id' not in gen3_discovery:
+            continue
         (study_id, consent) = get_id_and_consent(gen3_discovery['study_id'])
         if not consent:
             # Non-dbgap IDs not supported by Dug
