@@ -39,6 +39,7 @@ def main(input_dir: str, output_dir: str) -> None:
         study_id = raw["id"]
         study_name = raw["name"]
         description = raw.get("description", "")
+        downloaded_from = raw.get("downloaded_from")
         metadata = {k: v for k, v in raw.items() if k not in ("id", "name", "description")}
 
         all_objects = []
@@ -69,11 +70,27 @@ def main(input_dir: str, output_dir: str) -> None:
                 all_objects.extend(result.sections)
                 all_objects.extend(result.variables)
 
+        if isinstance(downloaded_from, str):
+            for obj in all_objects:
+                if obj["type"] == "section":
+                    obj["action"] = downloaded_from
+        elif isinstance(downloaded_from, dict):
+            for key, url in downloaded_from.items():
+                prefix = f"{study_id}/assets/{key}"
+                for obj in all_objects:
+                    if (
+                        obj["type"] == "section"
+                        and obj.get("parent_type") == "study"
+                        and (obj["id"] == prefix or obj["id"].startswith(prefix + "/"))
+                    ):
+                        obj["action"] = url
+
         study = {
             "id": study_id,
             "name": study_name,
             "description": description,
             "type": "study",
+            "action": downloaded_from if isinstance(downloaded_from, str) else "",
             "section_list": [o["id"] for o in all_objects if o["type"] == "section"],
             "metadata": metadata,
         }
