@@ -25,4 +25,7 @@ def get_handler(suffix: str) -> Optional[Callable]:
     if suffix == ".xlsx":
         from formats import xlsx
         return xlsx.extract
+    if suffix == ".json":
+        from formats import json as json_fmt
+        return json_fmt.extract
     return None

@@ -75,3 +75,14 @@ formula result) becomes a searchable entry, identified by its cell coordinates
 (such as "A1" or "C7"). This captures variable names, category labels, protocol
 notes, and other descriptive content that researchers typically put in the
 text-heavy cells of a research spreadsheet.
+
+### JSON (.json)
+
+Each JSON file becomes one searchable section. Every key in the object becomes
+a searchable entry whose description is the value rendered as a string. Arrays
+of primitive values (strings, numbers) are joined with `"; "`. Nested objects
+and arrays of objects are flattened recursively: the full dotted key path (e.g.
+`"scanner.manufacturer"` or `"subjects.0.id"`) is used as the entry name, so
+the structure remains readable without JSONPath syntax. `null` values are
+skipped. If the file's root is not an object, the file appears as a section
+with no entries.
