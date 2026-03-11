@@ -1,6 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to LLMs when working with code in this repository.
+It should be kept up to date by LLMs working in this repository. CLAUDE.md only
+includes this file and should not be modified.
 
 ## What This Repository Does
 
