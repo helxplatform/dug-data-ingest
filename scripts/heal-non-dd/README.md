@@ -8,6 +8,49 @@ Input:
 - The Dug Data Model v2 from https://github.com/helxplatform/dug/blob/425735c772b8cb158ed9f13c65bbe9f3fa0482c8/src/dug/core/parsers/_base.py
   converted to JSON Schema.
 
+## Input Directory Structure
+
+Each study lives in its own subdirectory named after its HEAL Data Platform ID:
+
+```
+inputs/
+  HDP01130/
+    metadata.yaml       # required — study-level metadata
+    assets/             # optional — files to be indexed
+      readme.docx
+      data.xlsx
+      26165962/         # subdirectories are allowed (e.g. one per FigShare article)
+        file.xlsx
+```
+
+### metadata.yaml Schema
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | HEAL Data Platform study ID (e.g. `HDP01130`) |
+| `name` | yes | Human-readable study name |
+| `description` | no | Free-text description of the study |
+| `downloaded_from` | no | Source URL(s) — see below |
+| anything else | no | Passed through to the DugStudy `metadata` field as-is |
+
+#### `downloaded_from`
+
+Controls the `action` field on the output Dug objects, which Dug uses to link search results back to a source URL.
+
+**Single URL** — the entire study came from one place. Sets `action` on the DugStudy and every DugSection:
+
+```yaml
+downloaded_from: https://doi.org/10.17605/OSF.IO/F58DJ
+```
+
+**Dict** — different subdirectories of `assets/` came from different sources. Keys are path components relative to `assets/`; values are URLs. Sets `action` only on the top-level sections (those whose IDs fall under `assets/<key>/`):
+
+```yaml
+downloaded_from:
+  24867198: https://doi.org/10.6084/m9.figshare.24867198
+  25036019: https://doi.org/10.6084/m9.figshare.25036019
+```
+
 Output:
 - One file for every study (e.g. HDP01130.json) consists of a list of Dug Data Model v2 objects:
   - One DugStudy with the information from the metadata.yaml file.
