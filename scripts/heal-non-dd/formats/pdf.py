@@ -1,19 +1,11 @@
 """PDF (.pdf) format handler for heal-non-dd ingest."""
-import re
 from collections import defaultdict
 from pathlib import Path
 from statistics import median
 
 import pdfplumber
 
-from formats import ExtractResult
-
-
-def _slug(text: str) -> str:
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\s-]", "", text)
-    text = re.sub(r"\s+", "-", text)
-    return text
+from formats import ExtractResult, headings_to_variables
 
 
 def _extract_lines(pdf):
@@ -68,50 +60,13 @@ def _is_heading(line: dict, body_size: float) -> bool:
 
 
 def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
-    variables = []
-    seen_slugs: dict[str, int] = {}
-
-    def flush(heading: str, body: list[str]) -> None:
-        base = _slug(heading)
-        count = seen_slugs.get(base, 0)
-        seen_slugs[base] = count + 1
-        var_id = f"{section_id}/{base}" if count == 0 else f"{section_id}/{base}_{count + 1}"
-        variables.append({
-            "id": var_id,
-            "name": heading,
-            "description": "\n\n".join(body),
-            "type": "variable",
-            "data_type": "text",
-            "parents": [section_id],
-            "parent_type": "section",
-        })
-
     with pdfplumber.open(str(asset_path)) as pdf:
         lines, body_size = _extract_lines(pdf)
 
     if not lines:
         # Image-only / scanned PDF — no text layer
-        return ExtractResult(sections=[], variables=[], replace_file_section=False)
+        return ExtractResult()
 
-    current_heading = None
-    current_body: list[str] = []
-    pre_heading_body: list[str] = []
-
-    for line in lines:
-        if _is_heading(line, body_size):
-            if current_heading is not None:
-                flush(current_heading, current_body)
-            current_heading = line["text"]
-            current_body = []
-        else:
-            if current_heading is not None:
-                current_body.append(line["text"])
-            else:
-                pre_heading_body.append(line["text"])
-
-    if current_heading is not None:
-        flush(current_heading, current_body)
-    elif pre_heading_body:
-        flush(asset_path.name, pre_heading_body)
-
-    return ExtractResult(sections=[], variables=variables, replace_file_section=False)
+    items = [(_is_heading(line, body_size), line["text"]) for line in lines]
+    variables = headings_to_variables(items, section_id, asset_path.name)
+    return ExtractResult(variables=variables)

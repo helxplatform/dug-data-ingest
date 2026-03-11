@@ -80,7 +80,7 @@ def main(input_dir: str, output_dir: str) -> None:
                     result = handler(asset_file, section_id, study_id)
                 else:
                     entry["skipped"].append(asset_file)
-                    result = ExtractResult(sections=[], variables=[], replace_file_section=False)
+                    result = ExtractResult()
 
                 if not result.replace_file_section:
                     file_section = {

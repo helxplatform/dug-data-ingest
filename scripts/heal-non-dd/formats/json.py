@@ -1,16 +1,8 @@
 """JSON (.json) format handler for heal-non-dd ingest."""
 import json
-import re
 from pathlib import Path
 
-from formats import ExtractResult
-
-
-def _slug(text: str) -> str:
-    text = str(text).lower().strip()
-    text = re.sub(r"[^a-z0-9\s-]", "", text)
-    text = re.sub(r"\s+", "-", text)
-    return text
+from formats import ExtractResult, slug
 
 
 def _stringify(value) -> str:
@@ -54,7 +46,7 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
     for key_path, value in _flatten(data):
         if value is None:
             continue
-        base = "/".join(_slug(p) for p in key_path)
+        base = "/".join(slug(p) for p in key_path)
         count = seen_slugs.get(base, 0)
         seen_slugs[base] = count + 1
         var_id = f"{section_id}/{base}" if count == 0 else f"{section_id}/{base}_{count + 1}"
