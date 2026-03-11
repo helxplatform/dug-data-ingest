@@ -28,4 +28,7 @@ def get_handler(suffix: str) -> Optional[Callable]:
     if suffix == ".json":
         from formats import json as json_fmt
         return json_fmt.extract
+    if suffix == ".pdf":
+        from formats import pdf
+        return pdf.extract
     return None

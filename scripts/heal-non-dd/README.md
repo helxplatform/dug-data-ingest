@@ -76,6 +76,19 @@ formula result) becomes a searchable entry, identified by its cell coordinates
 notes, and other descriptive content that researchers typically put in the
 text-heavy cells of a research spreadsheet.
 
+### PDF (.pdf)
+
+Each PDF file becomes one searchable section. The handler inspects the font size and
+weight of each line of text to detect headings: a line is treated as a heading if it is
+≤ 120 characters long and either (a) its average font size is more than 15% larger than
+the document's median font size, or (b) it uses a bold font at roughly the body font size.
+Each heading and the body text that follows it become a separate searchable entry.
+
+If no headings are detected (common for posters, patents, or documents with uniform
+formatting), all text is kept as a single entry under the filename. If the PDF contains no
+extractable text (e.g. a scanned image with no text layer), the file appears as a section
+with no entries.
+
 ### JSON (.json)
 
 Each JSON file becomes one searchable section. Every key in the object becomes

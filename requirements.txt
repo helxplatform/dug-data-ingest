@@ -14,9 +14,10 @@ pyyaml
 pandas
 numpy
 
-# Needed for Word and Excel format handlers.
+# Needed for Word, Excel, and PDF format handlers.
 python-docx
 openpyxl
+pdfplumber
 
 # Needed for PicSure API integration.
 ipython
