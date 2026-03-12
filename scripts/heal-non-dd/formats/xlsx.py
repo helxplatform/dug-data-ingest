@@ -3,7 +3,17 @@ from pathlib import Path
 
 import openpyxl
 
-from formats import ExtractResult
+from formats import ExtractResult, rows_to_variables
+
+
+def _sheet_rows(sheet) -> list[list[str]]:
+    """Return non-empty rows from a sheet as string lists."""
+    rows = []
+    for row in sheet.iter_rows():
+        cells = [str(c.value).strip() if c.value is not None else "" for c in row]
+        if any(cells):
+            rows.append(cells)
+    return rows
 
 
 def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
@@ -13,29 +23,12 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
 
     for sheet in wb.worksheets:
         sheet_section_id = f"{section_id}/{sheet.title}"
-        sheet_variable_ids = []
-
-        for row in sheet.iter_rows():
-            for cell in row:
-                if cell.value is None:
-                    continue
-                if isinstance(cell.value, (int, float)):
-                    continue
-                text = str(cell.value).strip()
-                if not text:
-                    continue
-                var_id = f"{sheet_section_id}/{cell.column_letter}{cell.row}"
-                variables.append({
-                    "id": var_id,
-                    "name": text,
-                    "description": text,
-                    "type": "variable",
-                    "data_type": "text",
-                    "parents": [sheet_section_id],
-                    "parent_type": "section",
-                })
-                sheet_variable_ids.append(var_id)
-
+        all_rows = _sheet_rows(sheet)
+        if all_rows:
+            sheet_vars = rows_to_variables(all_rows[0], all_rows[1:], sheet_section_id)
+        else:
+            sheet_vars = []
+        variables.extend(sheet_vars)
         sections.append({
             "id": sheet_section_id,
             "name": sheet.title,
@@ -43,7 +36,7 @@ def extract(asset_path: Path, section_id: str, study_id: str) -> ExtractResult:
             "type": "section",
             "parents": [study_id],
             "parent_type": "study",
-            "variable_list": sheet_variable_ids,
+            "variable_list": [v["id"] for v in sheet_vars],
         })
 
     return ExtractResult(sections=sections, variables=variables, replace_file_section=True)

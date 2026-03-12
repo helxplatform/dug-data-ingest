@@ -55,7 +55,7 @@ Output:
 - One file for every study (e.g. HDP01130.json) consists of a list of Dug Data Model v2 objects:
   - One DugStudy with the information from the metadata.yaml file.
   - One DugSection for every asset (or one DugSection per worksheet for Excel files).
-  - DugVariables extracted from Word headings and Excel text cells.
+  - DugVariables extracted from Word headings, Excel rows, and CSV rows.
 
 ## Supported Formats
 
@@ -70,11 +70,20 @@ searchable entries, all linked back to the study.
 ### Microsoft Excel (.xlsx)
 
 Each worksheet tab in the workbook becomes its own searchable section in Dug.
-Within each sheet, every cell that contains a text value (not a number or a
-formula result) becomes a searchable entry, identified by its cell coordinates
-(such as "A1" or "C7"). This captures variable names, category labels, protocol
-notes, and other descriptive content that researchers typically put in the
-text-heavy cells of a research spreadsheet.
+Within each sheet, the first non-empty row is treated as the header. Each
+subsequent non-empty row becomes one searchable entry whose description encodes
+all column headers and their values (e.g. `"Compound: Pinacidil; Sample Size
+(n): 3; Peak Current Density at +50 mV (pA/pF): 0.00058 ± 5.08"`). Both text
+and numeric cells are included, giving NER tools quantitative context alongside
+qualitative labels.
+
+### CSV (.csv)
+
+Each CSV file maps to the file-level section created by the ingest pipeline
+(there are no sheets to create sub-sections from). The first non-empty row is
+treated as the header. Each subsequent non-empty row becomes one searchable
+entry whose description encodes column headers and values in the same
+`"Header: value"` format used by the Excel handler. Empty rows are skipped.
 
 ### PDF (.pdf)
 

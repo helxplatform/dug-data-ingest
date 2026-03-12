@@ -75,6 +75,43 @@ def headings_to_variables(
     return variables
 
 
+def rows_to_variables(
+    headers: list[str],
+    data_rows: list[list[str]],
+    section_id: str,
+) -> list[dict]:
+    """Convert tabular data into DugVariable dicts, one per data row.
+
+    Each variable's name is the first non-empty cell of the row. Its description
+    is all non-empty header:value pairs joined by "; ", giving NER tools
+    column-header context for each value. Empty rows are skipped.
+    """
+    variables: list[dict] = []
+    seen_slugs: dict[str, int] = {}
+
+    for row in data_rows:
+        pairs = [(h, v) for h, v in zip(headers, row) if v]
+        if not pairs:
+            continue
+        name = pairs[0][1]  # first non-empty cell value
+        description = "; ".join(f"{h}: {v}" if h else v for h, v in pairs)
+        base = slug(name)
+        count = seen_slugs.get(base, 0)
+        seen_slugs[base] = count + 1
+        var_id = f"{section_id}/{base}" if count == 0 else f"{section_id}/{base}_{count + 1}"
+        variables.append({
+            "id": var_id,
+            "name": name,
+            "description": description,
+            "type": "variable",
+            "data_type": "text",
+            "parents": [section_id],
+            "parent_type": "section",
+        })
+
+    return variables
+
+
 def get_handler(suffix: str) -> Optional[Callable]:
     """Return the extract function for the given file suffix, or None."""
     suffix = suffix.lower()
@@ -90,4 +127,7 @@ def get_handler(suffix: str) -> Optional[Callable]:
     if suffix == ".pdf":
         from formats import pdf
         return pdf.extract
+    if suffix == ".csv":
+        from formats import csv as csv_fmt
+        return csv_fmt.extract
     return None
