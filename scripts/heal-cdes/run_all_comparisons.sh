@@ -6,6 +6,10 @@ echo "Dug Data Model v2 Comparison Analysis"
 echo "=========================================="
 echo ""
 
+echo "Running Preprocessor: Cleaning DDM2 files..."
+python3 clean-ddm2-files.py
+echo ""
+
 echo "Running Pass 1: Missing Files..."
 python3 compare_pass1_missing_files.py
 echo ""
