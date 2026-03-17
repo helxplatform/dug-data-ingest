@@ -1,11 +1,9 @@
 location_pattern,difference_type,num_files,percentage,example_filename,example_location,example_dug_2026jan_value,example_heal_cdes_value
 $[*].metadata.crf_name,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[0].metadata.crf_name,<missing>,"""Demographics Adult"""
 $[*].metadata.*,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[0].metadata.crf_name,<missing>,"""Demographics Adult"""
-$[*].variable_list,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[34].variable_list,<missing>,"[""BRTHDTC"", ""Age"", ""AgeU"", ""Sex"", ""ETHNIC"", ""AI_AN\n\n\n\n\n\n"", ""Asian"", ""Bl_AA"", ""NH_PI"", ""White"","
+$[*].*,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[34].urls,<missing>,"[{""url"": """", ""filename"": """", ""lang"": ""en"", ""mime-type"": ""application/octet-stream"", ""description"": n"
 $[*].metadata,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[34].metadata,<missing>,{}
-$[*].*,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[34].metadata,<missing>,{}
+$[*].variable_list,key_only_in_dir2,238,100.0%,HDPCDE00001.json,$[34].variable_list,<missing>,"[""BRTHDTC"", ""Age"", ""AgeU"", ""Sex"", ""ETHNIC"", ""AI_AN\n\n\n\n\n\n"", ""Asian"", ""Bl_AA"", ""NH_PI"", ""White"","
 $[*].urls,key_only_in_dir2,237,99.6%,HDPCDE00001.json,$[34].urls,<missing>,"[{""url"": """", ""filename"": """", ""lang"": ""en"", ""mime-type"": ""application/octet-stream"", ""description"": n"
-$[*].metadata.enum[*],value_mismatch,11,4.6%,HDPCDE00002.json,$[2].metadata.enum[1], months,months
-$[*].metadata.*,value_mismatch,11,4.6%,HDPCDE00002.json,$[2].metadata.enum[1], months,months
 $[*].name,value_mismatch,5,2.1%,HDPCDE5986.json,$[6].name,PROMIS Cognitive Function- Short Form 4a ,PROMIS Cognitive Function- Short Form 4a
 $[*].*,value_mismatch,5,2.1%,HDPCDE5986.json,$[6].name,PROMIS Cognitive Function- Short Form 4a ,PROMIS Cognitive Function- Short Form 4a
