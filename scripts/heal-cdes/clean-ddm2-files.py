@@ -27,7 +27,22 @@ def main(input_dir, output_dir):
 
 
 def clean_entries(entries):
+    # Build index: section_id -> [variable_id, ...] (in file order)
+    section_variables: dict[str, list[str]] = {}
     for entry in entries:
+        if entry.get("type") == "variable":
+            for parent_id in entry.get("parents", []):
+                section_variables.setdefault(parent_id, []).append(entry["id"])
+
+    for entry in entries:
+        # Strip trailing/leading whitespace from section names
+        if entry.get("type") == "section":
+            if isinstance(entry.get("name"), str):
+                entry["name"] = entry["name"].strip()
+            # Populate missing variable_list
+            if "variable_list" not in entry:
+                entry["variable_list"] = section_variables.get(entry.get("id", ""), [])
+
         metadata = entry.get("metadata", {})
         if isinstance(metadata.get("enum"), list):
             metadata["enum"] = [v.strip() if isinstance(v, str) else v
