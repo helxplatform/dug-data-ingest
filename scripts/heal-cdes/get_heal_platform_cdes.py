@@ -140,6 +140,12 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
         if len(urls) > 1:
             logging.warning(f"CDE {crf_id} has multiple URLs: {urls}")
 
+        # Set up the categories
+        if 'is_core_cde' in crf_metadata and crf_metadata['is_core_cde']:
+            categories = ['Core'] # We previously divided them into "Adult Acute" etc but alas no more.
+        else:
+            categories = ['Supplemental']
+
         # Set up the Dug CRF.
         if crf_id in dug_crfs:
             raise RuntimeError(f"Duplicate CDE ID: {crf_id} (previous: {dug_crfs[crf_id]}, new: {cde_metadata})")
@@ -154,7 +160,7 @@ def download_from_mds(output_dir, mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT, 
             'description': '', # TODO: can we get this back somehow.
             'variable_list': [var['id'] for var in dug_variables],
             'metadata': {
-                # TODO: add category
+                'categories': categories,
             }
         }
         if len(urls) > 0:
