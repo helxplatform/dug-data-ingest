@@ -25,13 +25,13 @@ inputs/
 
 ### metadata.yaml Schema
 
-| Field | Required | Description |
-|---|---|---|
-| `id` | yes | HEAL Data Platform study ID (e.g. `HDP01130`) |
-| `name` | yes | Human-readable study name |
-| `description` | no | Free-text description of the study |
-| `downloaded_from` | no | Source URL(s) — see below |
-| anything else | no | Passed through to the DugStudy `metadata` field as-is |
+| Field             | Required | Description                                           |
+|-------------------|----------|-------------------------------------------------------|
+| `id`              | yes      | HEAL Data Platform study ID (e.g. `HDP01130`)         |
+| `name`            | yes      | Human-readable study name                             |
+| `description`     | no       | Free-text description of the study                    |
+| `downloaded_from` | no       | Source URL(s) — see below                             |
+| anything else     | no       | Passed through to the DugStudy `metadata` field as-is |
 
 #### `downloaded_from`
 
