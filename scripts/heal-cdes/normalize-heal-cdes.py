@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Clean/normalize dug-data-model-2 JSON files before comparison."""
+"""Normalize heal-cdes JSON files and rename them to HDPCDE<drupal_id>.json format."""
 
 import json
 import pathlib
 import click
 
+XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 
 @click.command()
-@click.argument("input_dir", default="data/dug-data-model-2026jan20-copied",
+@click.argument("input_dir", default="data/heal-cdes",
                 type=click.Path(exists=True, file_okay=False, path_type=pathlib.Path))
-@click.argument("output_dir", default="data/dug-data-model-2026jan20",
+@click.argument("output_dir", default="data/heal-cdes-normalized",
                 type=click.Path(file_okay=False, path_type=pathlib.Path))
 def main(input_dir, output_dir):
-    """Clean dug-data-model-2 files to normalize content before comparison."""
+    """Normalize heal-cdes files and rename them to HDPCDE<drupal_id>.json."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     json_files = list(input_dir.glob("*.json"))
@@ -21,9 +23,23 @@ def main(input_dir, output_dir):
     for path in json_files:
         data = json.loads(path.read_text())
         data = clean_entries(data)
-        (output_dir / path.name).write_text(json.dumps(data, indent=2))
+        output_filename = get_hdp_filename(data)
+        (output_dir / output_filename).write_text(json.dumps(data, indent=2))
 
     click.echo("Done.")
+
+
+def get_hdp_filename(entries):
+    """Return HDPCDE<drupal_id>.json using the drupal_id of the xlsx URL in the last section entry."""
+    section = entries[-1]
+    for url_obj in section.get("metadata", {}).get("urls", []):
+        if url_obj.get("mime-type") == XLSX_MIME_TYPE:
+            drupal_id = url_obj.get("drupal_id")
+            if drupal_id:
+                return f"HDPCDE{drupal_id}.json"
+    raise ValueError(
+        f"No xlsx URL with a drupal_id found in last entry of file (id={section.get('id')!r})"
+    )
 
 
 def clean_entries(entries):

@@ -2,9 +2,9 @@
 # Run all three comparison passes in sequence
 
 # Directory configuration — set these to control what gets compared.
-# DDM2_INPUT_DIR: source dug-data-model-2 files (will be copied and cleaned into DIR1)
-# DIR1: cleaned dug-data-model-2 output; cleared before each run so the cleaner repopulates it
-# DIR2: heal-cdes directory to compare against
+# DDM2_INPUT_DIR: source heal-cdes files (will be normalized and renamed into DIR1)
+# DIR1: normalized heal-cdes output (HDPCDE<id>.json); cleared before each run so the normalizer repopulates it
+# DIR2: heal-data-platform directory to compare against
 DDM2_INPUT_DIR="data/heal-cdes"
 DIR1="data/heal-cdes-normalized" # Will be cleared between runs
 DIR2="data/heal-data-platform"
@@ -14,14 +14,14 @@ echo "Dug Data Model v2 Comparison Analysis"
 echo "=========================================="
 echo ""
 
-# DIR1 is the cleaned output of the preprocessor; clear it first so the
-# cleaner starts fresh rather than merging with stale files.
+# DIR1 is the normalized output of the preprocessor; clear it first so the
+# normalizer starts fresh rather than merging with stale files.
 echo "Clearing $DIR1 before preprocessing..."
 rm -rf "$DIR1"
 echo ""
 
-echo "Running Preprocessor: Cleaning DDM2 files..."
-python3 clean-ddm2-files.py "$DDM2_INPUT_DIR" "$DIR1"
+echo "Running Preprocessor: Normalizing heal-cdes files..."
+python3 normalize-heal-cdes.py "$DDM2_INPUT_DIR" "$DIR1"
 echo ""
 
 echo "Running Pass 1: Missing Files..."
