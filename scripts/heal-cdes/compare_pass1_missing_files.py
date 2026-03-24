@@ -2,6 +2,7 @@
 """
 Pass 1: Report on files missing in one directory or the other.
 """
+import argparse
 import os
 from pathlib import Path
 import csv
@@ -11,8 +12,13 @@ def get_json_files(directory):
     return set(f for f in os.listdir(directory) if f.endswith('.json'))
 
 def main():
-    dir1 = Path("data/dug-data-model-2026jan20")
-    dir2 = Path("data/heal-cdes")
+    parser = argparse.ArgumentParser(description="Pass 1: Report on files missing in one directory or the other.")
+    parser.add_argument("dir1", help="First directory (e.g. cleaned dug-data-model)")
+    parser.add_argument("dir2", help="Second directory (e.g. heal-cdes)")
+    args = parser.parse_args()
+
+    dir1 = Path(args.dir1)
+    dir2 = Path(args.dir2)
 
     files1 = get_json_files(dir1)
     files2 = get_json_files(dir2)

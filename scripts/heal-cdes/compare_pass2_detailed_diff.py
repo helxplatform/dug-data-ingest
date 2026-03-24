@@ -2,6 +2,7 @@
 """
 Pass 2: For files present in both directories, produce a detailed report with JSON Path locations.
 """
+import argparse
 import json
 import os
 from pathlib import Path
@@ -155,8 +156,13 @@ def compare_files(file1_path, file2_path):
     return differences
 
 def main():
-    dir1 = Path("data/dug-data-model-2026jan20")
-    dir2 = Path("data/heal-cdes")
+    parser = argparse.ArgumentParser(description="Pass 2: Detailed JSON diff for files present in both directories.")
+    parser.add_argument("dir1", help="First directory (e.g. cleaned dug-data-model)")
+    parser.add_argument("dir2", help="Second directory (e.g. heal-cdes)")
+    args = parser.parse_args()
+
+    dir1 = Path(args.dir1)
+    dir2 = Path(args.dir2)
 
     files1 = get_json_files(dir1)
     files2 = get_json_files(dir2)
