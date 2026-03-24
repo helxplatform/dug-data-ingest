@@ -3,13 +3,33 @@
 Pass 1: Report on files missing in one directory or the other.
 """
 import argparse
-import os
-from pathlib import Path
 import csv
+import json
+import os
+import re
+from pathlib import Path
+
 
 def get_json_files(directory):
     """Get all JSON filenames from a directory."""
     return set(f for f in os.listdir(directory) if f.endswith('.json'))
+
+
+def hdp_sort_key(filename):
+    """Sort key that orders HDPCDE filenames numerically by their embedded id."""
+    m = re.search(r'(\d+)', filename)
+    return int(m.group(1)) if m else 0
+
+
+def get_title(filename, dir1, dir2):
+    """Return the CRF title from the last (section) entry in whichever directory has the file."""
+    for d in (dir1, dir2):
+        path = d / filename
+        if path.exists():
+            data = json.load(open(path))
+            return data[-1].get("name", "")
+    return ""
+
 
 def main():
     parser = argparse.ArgumentParser(description="Pass 1: Report on files missing in one directory or the other.")
@@ -30,14 +50,14 @@ def main():
     # Files in both
     in_both = sorted(files1 & files2)
 
-    # Get all unique files
-    all_files = sorted(files1 | files2)
+    # Get all unique files, sorted numerically by embedded HDPCDE id
+    all_files = sorted(files1 | files2, key=hdp_sort_key)
 
     # Write report (only files missing in one directory or the other)
     report_path = "comparison_pass1_missing_files.csv"
     with open(report_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['HDP CDE ID', 'dug-data-model-2026jan20', 'heal-cdes'])
+        writer.writerow(['HDP CDE ID', 'title', dir1.name, dir2.name])
 
         for filename in all_files:
             cde_id = filename.replace('.json', '')
@@ -46,7 +66,8 @@ def main():
 
             # Only write if missing in at least one directory
             if dir1_status == 'Missing' or dir2_status == 'Missing':
-                writer.writerow([cde_id, dir1_status, dir2_status])
+                title = get_title(filename, dir1, dir2)
+                writer.writerow([cde_id, title, dir1_status, dir2_status])
 
     # Print summary
     print(f"=== Pass 1: Missing Files Report ===")
