@@ -8,6 +8,25 @@ Input:
 - The Dug Data Model v2 from https://github.com/helxplatform/dug/blob/425735c772b8cb158ed9f13c65bbe9f3fa0482c8/src/dug/core/parsers/_base.py
   converted to JSON Schema.
 
+## Running the Ingest
+
+```bash
+python scripts/heal-non-dd/ingest.py <input_dir> -o <output_dir>
+```
+
+- `<input_dir>` — path to a directory containing one `HDP*/` subdirectory per study
+- `<output_dir>` — path where output JSON files will be written (must not already exist)
+
+Example:
+
+```bash
+python scripts/heal-non-dd/ingest.py scripts/heal-non-dd/data/inputs -o scripts/heal-non-dd/data/outputs
+```
+
+Each study that processes successfully produces one JSON file (e.g. `HDP01130.json`) in
+the output directory. A summary table is printed at the end showing how many studies,
+sections, and variables were created, along with any errors or skipped files.
+
 ## Input Directory Structure
 
 Each study lives in its own subdirectory named after its HEAL Data Platform ID:
