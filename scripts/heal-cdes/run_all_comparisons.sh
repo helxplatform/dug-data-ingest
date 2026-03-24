@@ -5,9 +5,9 @@
 # DDM2_INPUT_DIR: source dug-data-model-2 files (will be copied and cleaned into DIR1)
 # DIR1: cleaned dug-data-model-2 output; cleared before each run so the cleaner repopulates it
 # DIR2: heal-cdes directory to compare against
-DDM2_INPUT_DIR="data/dug-data-model-2026jan20-copied"
-DIR1="data/dug-data-model-2026jan20"
-DIR2="data/heal-cdes"
+DDM2_INPUT_DIR="data/heal-cdes"
+DIR1="data/heal-cdes-normalized" # Will be cleared between runs
+DIR2="data/heal-data-platform"
 
 echo "=========================================="
 echo "Dug Data Model v2 Comparison Analysis"
