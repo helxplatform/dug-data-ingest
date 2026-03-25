@@ -2,6 +2,7 @@
 """
 Pass 3: Identify common differences across files and filter them out.
 """
+import argparse
 import csv
 from collections import defaultdict
 from pathlib import Path
@@ -30,15 +31,14 @@ def generalize_location(location):
     return location
 
 def load_pass2_data():
-    """Load the detailed differences from pass 2."""
-    differences = []
+    """Load the detailed differences from pass 2, returning (fieldnames, rows)."""
     with open('comparison_pass2_detailed_diff.csv', 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
-        for row in reader:
-            differences.append(row)
-    return differences
+        fieldnames = reader.fieldnames
+        differences = list(reader)
+    return fieldnames, differences
 
-def identify_common_patterns(differences, total_files):
+def identify_common_patterns(differences, total_files, d1, d2):
     """
     Identify patterns that appear frequently across files.
     Returns a dict of pattern -> list of files
@@ -63,8 +63,8 @@ def identify_common_patterns(differences, total_files):
                 pattern_to_examples[pattern].append({
                     'filename': diff['filename'],
                     'location': diff['location'],
-                    'dug_2026jan_value': diff.get('dug_2026jan_value', diff.get('dir1_value', '')),
-                    'heal_cdes_value': diff.get('heal_cdes_value', diff.get('dir2_value', ''))
+                    f'{d1}_value': diff.get(f'{d1}_value', ''),
+                    f'{d2}_value': diff.get(f'{d2}_value', ''),
                 })
 
     # Calculate percentages and create report
@@ -72,15 +72,16 @@ def identify_common_patterns(differences, total_files):
     for pattern, files in pattern_to_files.items():
         location, diff_type = pattern
         percentage = (len(files) / total_files) * 100
+        ex = pattern_to_examples[pattern]
         common_patterns.append({
             'location_pattern': location,
             'difference_type': diff_type,
             'num_files': len(files),
             'percentage': f"{percentage:.1f}%",
-            'example_filename': pattern_to_examples[pattern][0]['filename'] if pattern_to_examples[pattern] else '',
-            'example_location': pattern_to_examples[pattern][0]['location'] if pattern_to_examples[pattern] else '',
-            'example_dug_2026jan_value': pattern_to_examples[pattern][0]['dug_2026jan_value'][:100] if pattern_to_examples[pattern] else '',
-            'example_heal_cdes_value': pattern_to_examples[pattern][0]['heal_cdes_value'][:100] if pattern_to_examples[pattern] else ''
+            'example_filename': ex[0]['filename'] if ex else '',
+            'example_location': ex[0]['location'] if ex else '',
+            f'example_{d1}_value': ex[0][f'{d1}_value'][:100] if ex else '',
+            f'example_{d2}_value': ex[0][f'{d2}_value'][:100] if ex else '',
         })
 
     # Sort by number of files (descending)
@@ -108,10 +109,16 @@ def should_filter_difference(diff, common_patterns_set, min_percentage=20):
     return False
 
 def main():
+    parser = argparse.ArgumentParser(description="Pass 3: Identify common differences across files and filter them out.")
+    parser.add_argument("dir1", help="First directory (must match what was passed to pass 2)")
+    parser.add_argument("dir2", help="Second directory (must match what was passed to pass 2)")
+    args = parser.parse_args()
+    d1, d2 = Path(args.dir1).name, Path(args.dir2).name
+
     print("=== Pass 3: Common Pattern Analysis ===\n")
 
     # Load pass 2 data
-    differences = load_pass2_data()
+    pass2_fieldnames, differences = load_pass2_data()
     print(f"Loaded {len(differences)} differences from pass 2")
 
     # Count unique files
@@ -120,13 +127,14 @@ def main():
     print(f"Across {total_files} files\n")
 
     # Identify common patterns
-    common_patterns, pattern_to_files = identify_common_patterns(differences, total_files)
+    common_patterns, pattern_to_files = identify_common_patterns(differences, total_files, d1, d2)
 
     # Write common patterns report
     common_report_path = "comparison_pass3_common_patterns.csv"
     with open(common_report_path, 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['location_pattern', 'difference_type', 'num_files', 'percentage',
-                      'example_filename', 'example_location', 'example_dug_2026jan_value', 'example_heal_cdes_value']
+                      'example_filename', 'example_location',
+                      f'example_{d1}_value', f'example_{d2}_value']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(common_patterns)
@@ -155,13 +163,10 @@ def main():
         if not should_filter_difference(diff, common_patterns_set, MIN_PERCENTAGE)
     ]
 
-    # Write filtered report
+    # Write filtered report (use pass2's own fieldnames to stay in sync)
     filtered_report_path = "comparison_pass3_filtered_diff.csv"
     with open(filtered_report_path, 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['filename', 'location', 'difference_type',
-                      'dug_2026jan_value', 'dug_2026jan_type', 'heal_cdes_value', 'heal_cdes_type',
-                      'dug_2026jan_context', 'heal_cdes_context']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=pass2_fieldnames)
         writer.writeheader()
         writer.writerows(filtered_differences)
 

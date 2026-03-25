@@ -192,22 +192,23 @@ def main():
             files_identical += 1
 
     # Write detailed report
+    d1, d2 = dir1.name, dir2.name
     report_path = "comparison_pass2_detailed_diff.csv"
     with open(report_path, 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['filename', 'location', 'difference_type',
-                      'dug_2026jan_value', 'dug_2026jan_type', 'heal_cdes_value', 'heal_cdes_type',
-                      'dug_2026jan_context', 'heal_cdes_context']
+                      f'{d1}_value', f'{d1}_type', f'{d2}_value', f'{d2}_type',
+                      f'{d1}_context', f'{d2}_context']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
 
-        # Rename keys in all_differences to match new fieldnames
+        # Rename keys in all_differences to match fieldnames derived from directory names
         for diff in all_differences:
-            diff['dug_2026jan_value'] = diff.pop('dir1_value', '')
-            diff['dug_2026jan_type'] = diff.pop('dir1_type', '')
-            diff['heal_cdes_value'] = diff.pop('dir2_value', '')
-            diff['heal_cdes_type'] = diff.pop('dir2_type', '')
-            diff['dug_2026jan_context'] = diff.pop('dir1_context', '')
-            diff['heal_cdes_context'] = diff.pop('dir2_context', '')
+            diff[f'{d1}_value'] = diff.pop('dir1_value', '')
+            diff[f'{d1}_type']  = diff.pop('dir1_type', '')
+            diff[f'{d2}_value'] = diff.pop('dir2_value', '')
+            diff[f'{d2}_type']  = diff.pop('dir2_type', '')
+            diff[f'{d1}_context'] = diff.pop('dir1_context', '')
+            diff[f'{d2}_context'] = diff.pop('dir2_context', '')
 
         writer.writerows(all_differences)
 

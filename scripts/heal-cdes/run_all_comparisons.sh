@@ -33,7 +33,7 @@ python3 compare_pass2_detailed_diff.py "$DIR1" "$DIR2"
 echo ""
 
 echo "Running Pass 3: Common Patterns..."
-python3 compare_pass3_common_patterns.py
+python3 compare_pass3_common_patterns.py "$DIR1" "$DIR2"
 echo ""
 
 echo "=========================================="
