@@ -12,7 +12,7 @@ import click
 import yaml
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from formats import ExtractResult, get_handler
+from formats import DEFAULT_FORMATS, ExtractResult, get_handler
 
 
 @click.command()
@@ -23,7 +23,14 @@ from formats import ExtractResult, get_handler
     type=click.Path(exists=False, file_okay=False, dir_okay=True),
     help="Output directory (must not already exist).",
 )
-def main(input_dir: str, output_dir: str) -> None:
+@click.option(
+    "--formats", "enabled_formats",
+    default=",".join(sorted(DEFAULT_FORMATS)),
+    show_default=True,
+    help="Comma-separated list of file extensions to process (e.g. docx,pdf,xlsx).",
+)
+def main(input_dir: str, output_dir: str, enabled_formats: str) -> None:
+    enabled = frozenset(f.strip().lower().lstrip(".") for f in enabled_formats.split(",") if f.strip())
     input_path = pathlib.Path(input_dir)
     output_path = pathlib.Path(output_dir)
     output_path.mkdir(parents=True)
@@ -75,8 +82,10 @@ def main(input_dir: str, output_dir: str) -> None:
                 if not asset_file.is_file():
                     continue
                 section_id = str(pathlib.Path(study_dir.name) / asset_file.relative_to(study_dir))
-                handler = get_handler(asset_file.suffix)
-                if handler:
+                if asset_file.suffix.lower().lstrip(".") not in enabled:
+                    entry["skipped"].append(asset_file)
+                    result = ExtractResult()
+                elif handler := get_handler(asset_file.suffix):
                     result = handler(asset_file, section_id, study_id)
                 else:
                     entry["skipped"].append(asset_file)

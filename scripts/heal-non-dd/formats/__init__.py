@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 
+DEFAULT_FORMATS: frozenset[str] = frozenset({"docx", "pdf", "json", "csv"})
+
+
 @dataclass
 class ExtractResult:
     sections: list = field(default_factory=list)
