@@ -1,0 +1,22 @@
+HDP CDE ID,title,heal-cdes-normalized,heal-data-platform
+HDPCDE00001,Demographics Adult,Missing,Present
+HDPCDE00002,Demographics Pediatric,Missing,Present
+HDPCDE5091,Brief Pain Inventory Pain Severity,Missing,Present
+HDPCDE5661,PROMIS Pediatric Anxiety – Short Form 8a,Present,Missing
+HDPCDE5756,Current Opioid Misuse Measure (COMM),Missing,Present
+HDPCDE5981,PROMIS Cognitive Function- Short Form 4a,Present,Missing
+HDPCDE5986,PROMIS Cognitive Function- Short Form 4a,Missing,Present
+HDPCDE6056,Patient Health Questionnaire-4 (PHQ-4),Present,Missing
+HDPCDE6541,PROMIS Pediatric Scale v1.0 - Global Health 7,Present,Missing
+HDPCDE7076,ASCQ-Me v2.0 Pain Episode Frequency and Severity Measure,Present,Missing
+HDPCDE7101,Big Five Inventory-10,Missing,Present
+HDPCDE7606,Pain Detect Questionnaire (PDQ),Missing,Present
+HDPCDE7671,PEDSQL Age 5 To 7 Child,Missing,Present
+HDPCDE7681,PEDSQL Age 8 To 12 Child Week,Missing,Present
+HDPCDE7686,PEDSQL Age 2 To 4,Missing,Present
+HDPCDE7691,PEDSQL Age 5 To 7 Parent,Missing,Present
+HDPCDE7701,PEDSQL Age 13 To 18 Child Week,Missing,Present
+HDPCDE7951,Pain Interference (PI),Present,Missing
+HDPCDE8186,PROMIS Item Bank v2.0 - Social Isolation - Short Form 8a,Present,Missing
+HDPCDE8671,Brief Pain Inventory Interference 7 Item 24 Hr,Missing,Present
+HDPCDE9266,Measure of Sickle Cell Stigma (MoSCS),Present,Missing

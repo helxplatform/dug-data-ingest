@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""
+Pass 1: Report on files missing in one directory or the other.
+"""
+import argparse
+import csv
+import json
+import os
+import re
+from pathlib import Path
+
+
+def get_json_files(directory):
+    """Get all JSON filenames from a directory."""
+    return set(f for f in os.listdir(directory) if f.endswith('.json'))
+
+
+def hdp_sort_key(filename):
+    """Sort key that orders HDPCDE filenames numerically by their embedded id."""
+    m = re.search(r'(\d+)', filename)
+    return int(m.group(1)) if m else 0
+
+
+def get_title(filename, dir1, dir2):
+    """Return the CRF title from the last (section) entry in whichever directory has the file."""
+    for d in (dir1, dir2):
+        path = d / filename
+        if path.exists():
+            data = json.load(open(path))
+            return data[-1].get("name", "")
+    return ""
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Pass 1: Report on files missing in one directory or the other.")
+    parser.add_argument("dir1", help="First directory (e.g. cleaned dug-data-model)")
+    parser.add_argument("dir2", help="Second directory (e.g. heal-cdes)")
+    args = parser.parse_args()
+
+    dir1 = Path(args.dir1)
+    dir2 = Path(args.dir2)
+
+    files1 = get_json_files(dir1)
+    files2 = get_json_files(dir2)
+
+    # Files only in dir1
+    only_in_dir1 = sorted(files1 - files2)
+    # Files only in dir2
+    only_in_dir2 = sorted(files2 - files1)
+    # Files in both
+    in_both = sorted(files1 & files2)
+
+    # Get all unique files, sorted numerically by embedded HDPCDE id
+    all_files = sorted(files1 | files2, key=hdp_sort_key)
+
+    # Write report (only files missing in one directory or the other)
+    report_path = "comparison_pass1_missing_files.csv"
+    with open(report_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['HDP CDE ID', 'title', dir1.name, dir2.name])
+
+        for filename in all_files:
+            cde_id = filename.replace('.json', '')
+            dir1_status = 'Present' if filename in files1 else 'Missing'
+            dir2_status = 'Present' if filename in files2 else 'Missing'
+
+            # Only write if missing in at least one directory
+            if dir1_status == 'Missing' or dir2_status == 'Missing':
+                title = get_title(filename, dir1, dir2)
+                writer.writerow([cde_id, title, dir1_status, dir2_status])
+
+    # Print summary
+    print(f"=== Pass 1: Missing Files Report ===")
+    print(f"\nTotal files in {dir1}: {len(files1)}")
+    print(f"Total files in {dir2}: {len(files2)}")
+    print(f"Files in both directories: {len(in_both)}")
+    print(f"\nFiles only in {dir1}: {len(only_in_dir1)}")
+    if only_in_dir1:
+        print(f"  Examples: {', '.join(list(only_in_dir1)[:5])}")
+    print(f"\nFiles only in {dir2}: {len(only_in_dir2)}")
+    if only_in_dir2:
+        print(f"  Examples: {', '.join(list(only_in_dir2)[:5])}")
+    print(f"\nReport written to: {report_path}")
+
+if __name__ == "__main__":
+    main()
