@@ -42,6 +42,9 @@ spec:
                   value: {{ .Values.jobExecutor.lakeFSRepository }}
                 - name: LAKEFS_TEMPPATH
                   value: /data/lakefs
+                {{- with $jobExecutor.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
               resources:
                 {{- toYaml $jobExecutor.resources | nindent 16 }}
               command: ["/bin/bash", "{{$script}}"]

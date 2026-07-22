@@ -5,5 +5,10 @@ dataStorage: 200Mi
 jobExecutor:
   script: heal/ingest.sh
   lakeFSRepository: heal-mds-import
+  extraEnv:
+    - name: HEAL_CDE_LAKEFS_LOCATION
+      value: lakefs://heal-cdes/main/
+    - name: HEAL_LAKEFS_OUTPUT
+      value: lakefs://heal-mds-studies/test/
   image:
     tag: latest
