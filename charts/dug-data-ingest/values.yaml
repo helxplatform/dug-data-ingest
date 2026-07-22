@@ -20,7 +20,11 @@ lakeFS:
 jobExecutor:
   image:
     repository: containers.renci.org/helxplatform/dug-data-ingest
-    tag: latest
+    # containers.renci.org prunes tags that don't start with "v" -- images are only
+    # published from GitHub Releases now (see release-docker-to-renci-containers.yaml),
+    # so this must be pinned to a real release tag, not "latest". Bump this after cutting
+    # a new release.
+    tag: v0.2.2
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 0

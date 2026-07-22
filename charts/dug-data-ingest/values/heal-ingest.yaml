@@ -10,5 +10,3 @@ jobExecutor:
       value: lakefs://heal-cdes/main/
     - name: HEAL_LAKEFS_OUTPUT
       value: lakefs://heal-mds-studies/test/
-  image:
-    tag: latest
