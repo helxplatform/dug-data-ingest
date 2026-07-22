@@ -1,62 +1,266 @@
 import logging
 import os
+import shutil
+import tempfile
 import requests
 import click
-from typing import List
 from pathlib import Path
-from xml.etree import ElementTree as ET
 import csv
 import json
-from dug import utils as utils
-from _base import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE, VARIABLE_TYPE
+from dug_data_model.v2 import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE, VARIABLE_TYPE
+from lakefs_spec import LakeFSFileSystem
 
 logger = logging.getLogger('dug')
+logger.setLevel(logging.INFO)
 
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
 PUBLIC_MDS_ENDPOINT = 'https://healdata.org/portal/discovery'
 MDS_DEFAULT_LIMIT = 10000
 DATA_DICT_GUID_TYPE = 'data_dictionary'
+DEFAULT_RESEARCH_PROGRAM_NETWORK_ENDPOINT = (
+    'https://opzv7se6o6fpwzfpgt4uqne6rm0fnqtu.lambda-url.us-east-1.on.aws/query?name=get_resnet_resprog'
+)
+DEFAULT_RESEARCH_NORMALIZATION_CSV = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'data/research_program_network_normalization.csv')
+
 HEAL_STUDY_GUID_TYPES = [
     'discovery_metadata',                   # Fully registered studies.
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
 
-def get_cde_mappings(cde_dir:Path):
-    
-    all_cde_files = list(cde_dir.glob("*.dug.json"))
+def _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, source_name=''):
+    elements = DugElementParsedList.validate_python(json_obj)
+    section_obj = [e for e in elements if e.type == SECTION_TYPE]
+    if len(section_obj) != 1:
+        print(f"Something wrong with CDE: {source_name}")
+        return
+    section = section_obj[0]
+    section_id_splits = section.id.split(":")
+    section_id = section_id_splits[0] if len(section_id_splits) == 1 else section.id.split(":")[1]
+    study_mappings = section.metadata['study_mappings']
+    if len(study_mappings) > 0:
+        for study in list(study_mappings.keys()):
+            if study in study_cde_mappings:
+                study_cde_mappings[study].append(section_id)
+            else:
+                study_cde_mappings[study] = [section_id]
+    cdes = [e for e in elements if e.type == VARIABLE_TYPE]
+    for cde in cdes:
+        # variable_cde_candidates: HDPID -> {variable_name -> [{measure, cde}, ...]}
+        # A measure can be reused across more than one CDE/section (i.e. across more than
+        # one .dug.json file), so we can't pick the "right" one until every file has been
+        # read and study_cde_mappings (which CDEs a study actually uses) is complete. See
+        # _resolve_variable_cde_mappings for the second pass that does the picking.
+        mappings = cde.metadata.get('study_variable_mappings', {})
+        for hdpid in mappings:
+            variable_cde_candidates.setdefault(hdpid, {})
+            for v in mappings[hdpid]:
+                variable_cde_candidates[hdpid].setdefault(v, []).append({"measure": cde.id, "cde": section_id})
+
+
+def _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings):
+    """Pick, for each study/variable, the candidate CDE that the study is actually mapped to.
+
+    When a variable's measure is a candidate for more than one CDE, prefer whichever
+    candidate CDE(s) the study is known to use (per study_cde_mappings). If more than one
+    still matches, or none do, default to the alphabetically first candidate and log it.
+    """
+    variable_cde_mappings = {}
+    for hdpid, variables in variable_cde_candidates.items():
+        study_cdes = set(study_cde_mappings.get(hdpid, []))
+        variable_cde_mappings[hdpid] = {}
+        for variable_name, candidates in variables.items():
+            matches = sorted((c for c in candidates if c["cde"] in study_cdes), key=lambda c: c["cde"])
+            if not matches:
+                matches = sorted(candidates, key=lambda c: c["cde"])
+                if len(candidates) > 1:
+                    logger.warning(
+                        f"No candidate CDE for {hdpid}:{variable_name} matches the study's "
+                        f"known CDEs {sorted(study_cdes)}; defaulting to {matches[0]['cde']}"
+                    )
+            elif len(matches) > 1:
+                logger.warning(
+                    f"{hdpid}:{variable_name} matches multiple CDEs the study is mapped to "
+                    f"({[m['cde'] for m in matches]}); defaulting to {matches[0]['cde']}"
+                )
+            variable_cde_mappings[hdpid][variable_name] = matches[0]
+    total_variable_mappings = sum(len(v) for v in variable_cde_mappings.values())
+    logger.info(
+        f"CDE mappings: {len(study_cde_mappings)} studies mapped to a CDE section, "
+        f"{len(variable_cde_mappings)} studies have {total_variable_mappings} variable-level CDE mappings"
+    )
+    return variable_cde_mappings
+
+
+def get_cde_mappings(cde_dir: Path):
     study_cde_mappings = dict()
-    variable_cde_mappings = dict()
-    for cde_file in all_cde_files:
+    variable_cde_candidates = dict()
+    cde_files = list(cde_dir.glob("*.dug.json"))
+    for cde_file in cde_files:
         with open(cde_file, "r") as f:
             json_obj = json.load(f)
-            elements = DugElementParsedList.validate_python(json_obj)
-            section_obj = [e for e in elements if e.type==SECTION_TYPE]
-            if len(section_obj) !=1:
-                print(f"Something wrong with CDE: {cde_file}")
-            section = section_obj[0] 
-            section_id_splits = section.id.split(":")
-            section_id = section_id_splits[0] if len(section_id_splits) == 1 else section.id.split(":")[1]
-            study_mappings = section.metadata['study_mappings']
-            if len(study_mappings) > 0:
-                studies = list(study_mappings.keys())  
-                for study in studies:
-                    if study in study_cde_mappings:
-                        study_cde_mappings[study].append(section_id)
-                    else:
-                        study_cde_mappings[study] = [section_id]
-            cdes = [e for e in elements if e.type==VARIABLE_TYPE]
-            for cde in cdes:
-                # Find if there are mappings
-                # variable_cde_mappings will be a dict of dicts, with HDPID = dict of variable -> cde mapping
-                # variables are mapped to a single CDE.
-                mappings = cde.metadata['study_variable_mappings'] if 'study_variable_mappings' in cde.metadata else {}
-                for hdpid in mappings:
-                    if hdpid not in variable_cde_mappings:
-                        variable_cde_mappings[hdpid] = dict()
-                    variable_mappings = {v:{"measure":cde.id, "cde":section_id}  for v in mappings[hdpid]}
-                    variable_cde_mappings[hdpid] = {**variable_cde_mappings[hdpid], **variable_mappings}
-    print(variable_cde_mappings)
-    return study_cde_mappings, variable_cde_mappings
+        _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, cde_file)
+    logger.info(f"Read {len(cde_files)} CDE files from {cde_dir}")
+    return study_cde_mappings, _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+
+
+def _get_lakefs_filesystem():
+    """Create a LakeFSFileSystem instance with credentials from environment variables."""
+    host = os.environ.get('LAKEFS_SERVER_ENDPOINT_URL')
+    username = os.environ.get('LAKEFS_ACCESS_KEY_ID')
+    password = os.environ.get('LAKEFS_SECRET_ACCESS_KEY')
+    
+    if not all([host, username, password]):
+        raise ValueError(
+            f"Missing LakeFS credentials. Required environment variables: "
+            f"LAKEFS_SERVER_ENDPOINT_URL={host}, "
+            f"LAKEFS_ACCESS_KEY_ID={'***' if username else 'NOT SET'}, "
+            f"LAKEFS_SECRET_ACCESS_KEY={'***' if password else 'NOT SET'}"
+        )
+
+    if not host.startswith(('http://', 'https://')):
+        host = 'https://' + host
+        logger.warning(f"LAKEFS_SERVER_ENDPOINT_URL had no scheme; defaulting to https://: {host}")
+
+    logger.info(f"Initializing LakeFSFileSystem with host={host}, username={username}")
+    return LakeFSFileSystem(host=host, username=username, password=password)
+
+
+def load_research_normalization(csv_path: Path) -> dict:
+    """Load the raw_value -> {canonical_name, code} table used to normalize research
+    program/network values before they're used in `programs`/tags.
+
+    A single shared table is used for both research programs and research networks --
+    some entities (e.g. JCOIN) are referred to as both, and their raw_value strings don't
+    collide across the two, so one lookup keyed on raw_value covers both fields. Lookups
+    are case-insensitive (keyed on the lowercased raw_value) since the source API is
+    inconsistent about casing for otherwise-identical values (e.g. "PAIN ERN" vs "Pain
+    ERN"). If the same raw_value appears more than once with conflicting canonical
+    name/code, the first row wins and the rest are logged as conflicts.
+    """
+    table = {}
+    with open(csv_path, 'r', newline='') as f:
+        for row in csv.DictReader(f):
+            raw_value = row['raw_value'].strip()
+            if not raw_value:
+                continue
+            key = raw_value.lower()
+            entry = {
+                'canonical_name': row['canonical_name'].strip(),
+                'code': row['code'].strip() or None,
+            }
+            if key in table:
+                if table[key] != entry:
+                    logger.warning(
+                        f"{csv_path} has conflicting rows for raw_value {raw_value!r} "
+                        f"(case-insensitive): {table[key]} vs {entry}; keeping the first row"
+                    )
+                continue
+            table[key] = entry
+    return table
+
+
+def _normalize_research_value(raw_value: str, normalization_table: dict, unmapped: set = None) -> tuple:
+    """Return (canonical_name, code) for a raw research program/network value.
+
+    Falls back to the raw value unchanged (with no code) if it isn't in the table yet. If
+    `unmapped` is given, misses are added to it so the caller can warn about them once,
+    instead of once per occurrence (the same raw value can recur across many studies).
+    """
+    entry = normalization_table.get(raw_value.lower())
+    if entry:
+        return entry['canonical_name'], entry['code']
+    if unmapped is not None:
+        unmapped.add(raw_value)
+    return raw_value, None
+
+
+def _research_tag_value(canonical_name: str, code: str) -> str:
+    # Code-first so tags sort consistently by short form. The acronym and full name are
+    # still both present as separate tokens in the tag's analyzed search field either way.
+    return f"({code}): {canonical_name}" if code else canonical_name
+
+
+def get_research_program_network_mappings(endpoint_url: str, normalization_table: dict) -> dict:
+    """Fetch HDPID -> normalized research program/network info from the Research Program/Network API.
+
+    Each entry has 'research_program'/'research_network' (canonical names, used for the
+    `programs` list) and 'research_program_tag'/'research_network_tag' (canonical name +
+    code, used for tags -- see _research_tag_value).
+
+    Rows without a study_hdp_id can't be used for this per-study lookup and are dropped. A
+    handful of study_hdp_ids appear more than once in the source data with the same program
+    but a null network on one row and a real value on another; when that happens we keep
+    whichever value is non-null rather than picking a row arbitrarily.
+    """
+    result = requests.get(endpoint_url)
+    if not result.ok:
+        raise RuntimeError(f'Could not retrieve research program/network mappings from {endpoint_url}: {result}')
+    raw_mappings = {}
+    for row in result.json().get('results', []):
+        hdpid = row.get('study_hdp_id')
+        if not hdpid:
+            continue
+        existing = raw_mappings.get(hdpid, {})
+        raw_mappings[hdpid] = {
+            'research_program': row.get('research_program') or existing.get('research_program'),
+            'research_network': row.get('research_network') or existing.get('research_network'),
+        }
+    mappings = {}
+    unmapped = set()
+    for hdpid, raw in raw_mappings.items():
+        program_name = program_code = network_name = network_code = None
+        if raw['research_program']:
+            program_name, program_code = _normalize_research_value(raw['research_program'], normalization_table, unmapped)
+        if raw['research_network']:
+            network_name, network_code = _normalize_research_value(raw['research_network'], normalization_table, unmapped)
+        mappings[hdpid] = {
+            'research_program': program_name,
+            'research_program_tag': _research_tag_value(program_name, program_code) if program_name else None,
+            'research_network': network_name,
+            'research_network_tag': _research_tag_value(network_name, network_code) if network_name else None,
+        }
+    logger.info(f"Loaded research program/network mappings for {len(mappings)} studies from {endpoint_url}")
+    if unmapped:
+        logger.warning(
+            f"{len(unmapped)} distinct research program/network value(s) from {endpoint_url} have no "
+            f"entry in the normalization table and were passed through unchanged: {sorted(unmapped)}"
+        )
+    return mappings
+
+
+def get_cde_mappings_from_lakefs(lakefs_uri: str):
+    """Read all .dug.json CDE files from a lakeFS URI and return CDE mappings."""
+    # Debug: Print environment variables
+    logger.info(f"LAKEFS_SERVER_ENDPOINT_URL: {os.environ.get('LAKEFS_SERVER_ENDPOINT_URL', 'NOT SET')}")
+    logger.info(f"LAKEFS_ACCESS_KEY_ID: {os.environ.get('LAKEFS_ACCESS_KEY_ID', 'NOT SET')}")
+    logger.info(f"LAKEFS_SECRET_ACCESS_KEY: {'***' if os.environ.get('LAKEFS_SECRET_ACCESS_KEY') else 'NOT SET'}")
+    
+    lakefs = _get_lakefs_filesystem()
+    study_cde_mappings = dict()
+    variable_cde_candidates = dict()
+    cde_count = 0
+    for obj in lakefs.ls(lakefs_uri, detail=True, recursive=True):
+        if obj['type'] != 'file':
+            continue
+        obj_name = obj['name']
+        if not obj_name.endswith('.dug.json'):
+            continue
+        with lakefs.open(obj_name, 'rt') as f:
+            json_obj = json.load(f)
+        _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, obj_name)
+        cde_count += 1
+    logger.info(f"Read {cde_count} CDE files from {lakefs_uri}")
+    return study_cde_mappings, _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+
+
+def upload_file_to_lakefs(local_path: Path, lakefs_base_uri: str) -> None:
+    """Upload a local file to a lakeFS URI, appending the filename to the base URI."""
+    lakefs = _get_lakefs_filesystem()
+    base = lakefs_base_uri.rstrip('/')
+    dest_uri = f"{base}/{local_path.name}"
+    lakefs.put(str(local_path), dest_uri)
+    logger.info(f"Uploaded {local_path} -> {dest_uri}")
 
 def translate_data_dictionary_field(field):
     """
@@ -151,6 +355,7 @@ def get_dd_info_from_mds(dd_id:str, dd_label:str,  mds_url:str=None):
         return result_json
 
 def get_study_info_from_mds(study_id:str, mds_url:str=None):
+        print(study_id)
         if not mds_url:
             mds_url = DEFAULT_MDS_ENDPOINT
 
@@ -167,6 +372,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         vlmd_data = study_json.get('variable_level_metadata', None)
 
         if gen3_discovery is None and nih_reporter is None:
+            logger.error(f'Could not retrieve gen3 details and NIH reporter for study ID {study_id}')
             return None
 
         study_metadata = gen3_discovery.get('study_metadata', {})
@@ -197,6 +403,10 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         repositories = []
         if study_metadata is not None and ('metadata_location' in study_metadata and 'data_repositories' in study_metadata['metadata_location']):
             repositories = [k['repository_study_link'] for k in study_metadata['metadata_location']['data_repositories'] if 'repository_study_link' in k and len(k['repository_study_link']) > 0]
+
+        nih_reporter_link = None
+        if study_metadata is not None and ('metadata_location' in study_metadata and 'nih_reporter_link' in study_metadata['metadata_location']):
+            nih_reporter_link = study_metadata['metadata_location']['nih_reporter_link']
 
         """
         gen3_discovery.__manifest field exists AND is not empty
@@ -232,6 +442,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             "abstract" : abstract,
             "project_start_date" : nih_reporter.get('project_start_date', ""),
             "project_end_date" : nih_reporter.get('project_end_date', ""),
+            "nih_reporter_link": nih_reporter_link if nih_reporter_link is not None else "",
             "publication_list": publication_list,
             "pi_list": pi_list,
             'institution': gen3_discovery['institutions'] if gen3_discovery is not None and 'institutions' in gen3_discovery else '',
@@ -274,7 +485,8 @@ def guess_data_type(values):
         return "number"
     return "string"
 
-def transform_dds_to_dug(vlmd_dds, study_id, research_program=None, research_network=None,vlmd_cde_mappings = {}):
+def transform_dds_to_dug(vlmd_dds, study_id, research_program=None,
+                          research_program_tag=None, research_network_tag=None, vlmd_cde_mappings = {}):
     dug_variables = []
     for vlmd_dd in vlmd_dds:
         for variable in vlmd_dd.get('fields', []):
@@ -303,10 +515,10 @@ def transform_dds_to_dug(vlmd_dds, study_id, research_program=None, research_net
                               data_type=data_type,
                               is_cde=False
                               ) ## This would be changed to study id
-            if research_network:
-                elem.add_tag("Research Network", research_network)
-            if research_program:
-                elem.add_tag("Research Program", research_program)
+            if research_network_tag:
+                elem.add_tag("Research Network", research_network_tag)
+            if research_program_tag:
+                elem.add_tag("Research Program", research_program_tag)
             if study_id in vlmd_cde_mappings and variable['name'] in vlmd_cde_mappings[study_id]:
                 metadata["cde_mapping"] = vlmd_cde_mappings[study_id][variable['name']]
             elem.metadata = metadata
@@ -315,59 +527,81 @@ def transform_dds_to_dug(vlmd_dds, study_id, research_program=None, research_net
 
 # Set up command line arguments.
 @click.command()
-@click.argument('output', type=click.Path(exists=False), required=True)
+@click.argument('output', type=click.Path(), required=False, default=None)
 @click.option(
     '--mds-metadata-endpoint', '--mds', default=DEFAULT_MDS_ENDPOINT,
     help='The MDS metadata endpoint to use, e.g. https://healdata.org/mds/metadata')
 @click.option(
-    '--hdp-to-study-type-mappings-csv',
-    default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         'data/ResearchNetworksResearchProgramsMappedToHDPID_Feb2026.csv'),
+    '--research-program-network-endpoint',
+    default=DEFAULT_RESEARCH_PROGRAM_NETWORK_ENDPOINT,
+    help='The API endpoint that maps HDP study IDs to HEAL research programs/networks.')
+@click.option(
+    '--research-normalization-csv',
+    default=DEFAULT_RESEARCH_NORMALIZATION_CSV,
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help='The CSV file that maps HDP study IDs to HEAL study types.')
+    help='CSV (code,raw_value,canonical_name) used to normalize research program/network '
+         'values into canonical names and tags.')
 @click.option(
     '--cde-location',
     default=None,
     type=click.Path(exists=True, dir_okay=True, file_okay=False),
-    help='Location to a directory with DUG JSON files of CDEs to get CDE->Study mapping. '
+    help='Location to a local directory with DUG JSON files of CDEs to get CDE->Study mapping.'
 )
 @click.option(
-    '--limit', default=MDS_DEFAULT_LIMIT,
-    help='The maximum number of entries to retrieve from the Platform '
-    'MDS. Note that some MDS instances have their own built-in '
-    'limit; if you hit that limit, you will need to update the '
-    'code to support offsets.')
+    '--cde-lakefs-location',
+    default=None,
+    help='lakeFS URI (e.g. lakefs://repo/branch/path/) to read .dug.json CDE files from. '
+         'Takes precedence over --cde-location when both are provided.'
+)
 @click.option(
-    '--use-cached/--no-use-cached', default=False,
-    help='Just use files already on disk, do not download any new'
-    'data from platform. Used for testing.')
+    '--lakefs-output',
+    default=None,
+    help='lakeFS URI (e.g. lakefs://repo/branch/path/) to upload output .dug.json files to. '
+         'Local file writing still runs regardless of this option.'
+)
 @click.option(
      '--debug', default=False,
      help='Run in debug mode.'
 )
 def get_heal_studies(output, mds_metadata_endpoint,
-                                     hdp_to_study_type_mappings_csv, 
-                                     limit,
+                                     research_program_network_endpoint,
+                                     research_normalization_csv,
                                      cde_location,
-                                     use_cached,
+                                     cde_lakefs_location,
+                                     lakefs_output,
                                      debug):
-    logging.basicConfig(filename= Path(output)/"log.tx", level = logging.DEBUG if debug else logging.INFO)
-    
+    if not output and not lakefs_output:
+        raise click.UsageError("At least one of OUTPUT (argument) or --lakefs-output must be provided.")
+    if not cde_location and not cde_lakefs_location:
+        raise click.UsageError("At least one of --cde-location or --cde-lakefs-location must be provided.")
+
+    _tmpdir = None
+    if not output:
+        _tmpdir = tempfile.mkdtemp()
+        output = _tmpdir
+    Path(output).mkdir(parents=True, exist_ok=True)
+    log_level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        handlers=[
+            logging.FileHandler(Path(output) / "log.txt"),
+            logging.StreamHandler(),
+        ],
+        force=True,
+    )
+
     if not mds_metadata_endpoint:
         mds_metadata_endpoint = DEFAULT_MDS_ENDPOINT
 
-     # Load the HDP to HEAL Study Type CSV file.
-    hdp_to_study_type_mappings_csv_filename = click.format_filename(hdp_to_study_type_mappings_csv)
-    hdp_to_study_type_mappings = {}
-    with open(hdp_to_study_type_mappings_csv_filename, 'r') as mappingsf:
-        mappings_reader = csv.DictReader(mappingsf)
-        for mapping in mappings_reader:
-            if mapping['study_type'] in ['HDP', 'CTN']:
-                hdp_to_study_type_mappings[mapping['key']] = {
-                    'research_program': 'Clinical Trials Network' if mapping['study_type'] == 'CTN' else  (None if mapping["Research Program"] == '-' else mapping["Research Program"]),
-                    'research_network': None if mapping["Research Network"] == '-' else ('Clinical Trials Network' if mapping["Research Network"] == 'CTN' else mapping["Research Network"]),
-                }
-    study_cde_mappings, variable_cde_mappings = get_cde_mappings(Path(cde_location))
+    # Load the normalization sheet.
+    research_normalization_table = load_research_normalization(Path(research_normalization_csv))
+    # Query the MySQL database to get the Research Network and Research Program mappings for all HDPIDs.
+    hdp_program_network_mappings = get_research_program_network_mappings(
+        research_program_network_endpoint, research_normalization_table)
+    if cde_lakefs_location:
+        study_cde_mappings, variable_cde_mappings = get_cde_mappings_from_lakefs(cde_lakefs_location)
+    else:
+        study_cde_mappings, variable_cde_mappings = get_cde_mappings(Path(cde_location))
     metadata_ids = []
     for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
         result = requests.get(mds_metadata_endpoint, params={
@@ -380,21 +614,37 @@ def get_heal_studies(output, mds_metadata_endpoint,
         metadata_ids.extend(result.json())
     study_ids = list(metadata_ids)
     logger.info(f"Getting information for {len(study_ids)} studies from HEAL MDS")
-    
+
+    existing_remote_files: set[str] = set()
+    if lakefs_output:
+        try:
+            pre_check_objects = _get_lakefs_filesystem().ls(lakefs_output, detail=True)
+        except FileNotFoundError:
+            pre_check_objects = []
+        for obj in pre_check_objects:
+            filename = obj['name'].rstrip('/').split('/')[-1]
+            if filename.endswith('.dug.json'):
+                existing_remote_files.add(filename)
+        logger.info(f"Found {len(existing_remote_files)} existing study files in lakeFS: {lakefs_output}")
+
+    written_files: set[str] = set()
     # studies = []
-    for count, sid in enumerate(study_ids):
+    for _ , sid in enumerate(study_ids):
             # if count==20:
             #     break
             study_details = get_study_info_from_mds(study_id = sid, mds_url = mds_metadata_endpoint)
             if study_details is None:
                 logger.debug(f"Metadata for Study {sid} is not available, Skipping!")
                 continue
-            research_program = hdp_to_study_type_mappings[study_details['id']]['research_program'] if study_details['id'] in hdp_to_study_type_mappings else None
-            research_network = hdp_to_study_type_mappings[study_details['id']]['research_network'] if study_details['id'] in hdp_to_study_type_mappings else None
-            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'], 
-                                                 study_details['id'], 
-                                                 research_program = research_program, 
-                                                 research_network=research_network, 
+            program_network = hdp_program_network_mappings.get(study_details['id'], {})
+            research_program = program_network.get('research_program')
+            research_program_tag = program_network.get('research_program_tag')
+            research_network_tag = program_network.get('research_network_tag')
+            dug_variables = transform_dds_to_dug(study_details['vlmd_dds'],
+                                                 study_details['id'],
+                                                 research_program = research_program,
+                                                 research_program_tag = research_program_tag,
+                                                 research_network_tag = research_network_tag,
                                                  vlmd_cde_mappings = variable_cde_mappings)
             metadata = {}
             if study_details['project_start_date'] is not None and len(study_details['project_start_date']) > 0:
@@ -409,7 +659,9 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 metadata['Data Availability'] = study_details['data_availability']
             if len(study_details['repositories']) > 0:
                 metadata['Data Package Links'] = study_details['repositories']
-            print(study_details['id'])
+            if len(study_details['nih_reporter_link']) > 0:
+                metadata['NIH Reporter Link'] = study_details['nih_reporter_link']
+            
             study = DugStudy(
                         id=study_details['id'],
                         name=study_details['study_name'],
@@ -423,10 +675,10 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         section_list = study_cde_mappings[study_details['id']] if study_details['id'] in study_cde_mappings else [],
                         metadata = metadata
                         )
-            if research_program:
-                study.add_tag("Research Program", research_program)
-            if research_network:
-                study.add_tag("Research Network", research_network)
+            if research_program_tag:
+                study.add_tag("Research Program", research_program_tag)
+            if research_network_tag:
+                study.add_tag("Research Network", research_network_tag)
 
             logger.debug(study)
             if dug_variables is None:
@@ -440,6 +692,26 @@ def get_heal_studies(output, mds_metadata_endpoint,
             print(file_path)
             with open(file_path, "w") as f:
                 json.dump(study_json, f, indent=4)
+            written_files.add(file_path.name)
+            if lakefs_output:
+                upload_file_to_lakefs(file_path, lakefs_output)
+
+    logger.info(f"Wrote {len(written_files)} study files")
+
+    if lakefs_output:
+        lakefs = _get_lakefs_filesystem()
+        base = lakefs_output.rstrip('/')
+        deleted_files = []
+        for filename in existing_remote_files:
+            if filename not in written_files:
+                lakefs.rm(f"{base}/{filename}")
+                deleted_files.append(filename)
+                logger.info(f"Deleted stale file from lakeFS: {base}/{filename}")
+        logger.info(f"Deleted {len(deleted_files)} stale files from lakeFS" +
+                    (f": {deleted_files}" if deleted_files else ""))
+
+    if _tmpdir:
+        shutil.rmtree(_tmpdir, ignore_errors=True)
 
 if __name__ == "__main__":
     get_heal_studies()
