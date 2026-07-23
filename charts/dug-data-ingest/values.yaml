@@ -16,6 +16,10 @@ lakeFS:
   username: TODO # see in values-secret.yaml
   password: TODO # see in values-secret.yaml
 
+# Slack incoming webhook for ingest run notifications. Optional -- see values-secret.yaml.
+slack:
+  webhookUrl: ""
+
 # Settings for the Job executor pod.
 jobExecutor:
   image:

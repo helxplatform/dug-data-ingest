@@ -42,6 +42,10 @@ spec:
                   value: {{ .Values.jobExecutor.lakeFSRepository }}
                 - name: LAKEFS_TEMPPATH
                   value: /data/lakefs
+                {{- with .Values.slack.webhookUrl }}
+                - name: SLACK_WEBHOOK_URL
+                  value: {{ . }}
+                {{- end }}
                 {{- with $jobExecutor.extraEnv }}
                 {{- toYaml . | nindent 16 }}
                 {{- end }}

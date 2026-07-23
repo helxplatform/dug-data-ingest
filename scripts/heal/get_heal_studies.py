@@ -32,7 +32,7 @@ def _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, sou
     elements = DugElementParsedList.validate_python(json_obj)
     section_obj = [e for e in elements if e.type == SECTION_TYPE]
     if len(section_obj) != 1:
-        print(f"Something wrong with CDE: {source_name}")
+        logger.warning(f"Something wrong with CDE: {source_name}")
         return
     section = section_obj[0]
     section_id_splits = section.id.split(":")
@@ -101,7 +101,8 @@ def get_cde_mappings(cde_dir: Path):
             json_obj = json.load(f)
         _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, cde_file)
     logger.info(f"Read {len(cde_files)} CDE files from {cde_dir}")
-    return study_cde_mappings, _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+    variable_cde_mappings = _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+    return study_cde_mappings, variable_cde_mappings, len(cde_files)
 
 
 def _get_lakefs_filesystem():
@@ -251,7 +252,8 @@ def get_cde_mappings_from_lakefs(lakefs_uri: str):
         _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, obj_name)
         cde_count += 1
     logger.info(f"Read {cde_count} CDE files from {lakefs_uri}")
-    return study_cde_mappings, _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+    variable_cde_mappings = _resolve_variable_cde_mappings(variable_cde_candidates, study_cde_mappings)
+    return study_cde_mappings, variable_cde_mappings, cde_count
 
 
 def upload_file_to_lakefs(local_path: Path, lakefs_base_uri: str) -> None:
@@ -261,6 +263,21 @@ def upload_file_to_lakefs(local_path: Path, lakefs_base_uri: str) -> None:
     dest_uri = f"{base}/{local_path.name}"
     lakefs.put(str(local_path), dest_uri)
     logger.info(f"Uploaded {local_path} -> {dest_uri}")
+
+
+def send_slack_notification(webhook_url: str, text: str) -> None:
+    """Post a message to a Slack incoming webhook. No-ops if webhook_url is falsy, and
+    never raises -- a failed notification shouldn't fail the ingest run itself."""
+    if not webhook_url:
+        logger.debug("SLACK_WEBHOOK_URL not set; skipping Slack notification.")
+        return
+    try:
+        result = requests.post(webhook_url, json={"text": text})
+        if not result.ok:
+            logger.error(f"Failed to send Slack notification: {result.status_code} {result.text}")
+    except requests.RequestException as e:
+        logger.error(f"Failed to send Slack notification: {e}")
+
 
 def translate_data_dictionary_field(field):
     """
@@ -355,7 +372,6 @@ def get_dd_info_from_mds(dd_id:str, dd_label:str,  mds_url:str=None):
         return result_json
 
 def get_study_info_from_mds(study_id:str, mds_url:str=None):
-        print(study_id)
         if not mds_url:
             mds_url = DEFAULT_MDS_ENDPOINT
 
@@ -382,7 +398,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             minimal_info = study_metadata.get('minimal_info', {})
         
         if not nih_reporter:
-            print(f"No nih_reporter found in study file {study_id}, continuing.")
+            logger.warning(f"No nih_reporter found in study file {study_id}, continuing.")
             nih_reporter = {}
         
         abstract = minimal_info.get('study_description', "")
@@ -599,9 +615,9 @@ def get_heal_studies(output, mds_metadata_endpoint,
     hdp_program_network_mappings = get_research_program_network_mappings(
         research_program_network_endpoint, research_normalization_table)
     if cde_lakefs_location:
-        study_cde_mappings, variable_cde_mappings = get_cde_mappings_from_lakefs(cde_lakefs_location)
+        study_cde_mappings, variable_cde_mappings, cde_file_count = get_cde_mappings_from_lakefs(cde_lakefs_location)
     else:
-        study_cde_mappings, variable_cde_mappings = get_cde_mappings(Path(cde_location))
+        study_cde_mappings, variable_cde_mappings, cde_file_count = get_cde_mappings(Path(cde_location))
     metadata_ids = []
     for heal_study_guid_type in HEAL_STUDY_GUID_TYPES:
         result = requests.get(mds_metadata_endpoint, params={
@@ -689,7 +705,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 
             study_json = [k.model_dump() for k in elements]
             file_path = Path(output)/f"{study_details['id']}.dug.json"
-            print(file_path)
+            logger.info(file_path)
             with open(file_path, "w") as f:
                 json.dump(study_json, f, indent=4)
             written_files.add(file_path.name)
@@ -698,10 +714,10 @@ def get_heal_studies(output, mds_metadata_endpoint,
 
     logger.info(f"Wrote {len(written_files)} study files")
 
+    deleted_files = []
     if lakefs_output:
         lakefs = _get_lakefs_filesystem()
         base = lakefs_output.rstrip('/')
-        deleted_files = []
         for filename in existing_remote_files:
             if filename not in written_files:
                 lakefs.rm(f"{base}/{filename}")
@@ -710,8 +726,35 @@ def get_heal_studies(output, mds_metadata_endpoint,
         logger.info(f"Deleted {len(deleted_files)} stale files from lakeFS" +
                     (f": {deleted_files}" if deleted_files else ""))
 
+    total_variable_mappings = sum(len(v) for v in variable_cde_mappings.values())
+    summary_lines = [
+        "*HEAL ingest completed successfully*",
+        f"lakeFS updated: {'yes' if lakefs_output else 'no (local output only)'}",
+        f"CDE files read: {cde_file_count}",
+        f"Studies mapped to a CDE section: {len(study_cde_mappings)}",
+        f"Studies with variable-level CDE mappings: {len(variable_cde_mappings)} ({total_variable_mappings} mappings)",
+        f"Study files written: {len(written_files)}",
+    ]
+    if lakefs_output:
+        summary_lines.append(f"Files uploaded to lakeFS: {len(written_files)}")
+        summary_lines.append(
+            f"Files deleted from lakeFS: {len(deleted_files)}"
+            + (f" ({', '.join(sorted(deleted_files))})" if deleted_files else "")
+        )
+    send_slack_notification(os.environ.get('SLACK_WEBHOOK_URL'), "\n".join(summary_lines))
+
     if _tmpdir:
         shutil.rmtree(_tmpdir, ignore_errors=True)
 
 if __name__ == "__main__":
-    get_heal_studies()
+    try:
+        get_heal_studies()
+    except SystemExit as e:
+        # Click converts both successful completion and internal errors (bad args,
+        # uncaught exceptions) into SystemExit; only notify on a genuine failure.
+        if e.code not in (None, 0):
+            send_slack_notification(
+                os.environ.get('SLACK_WEBHOOK_URL'),
+                f"*HEAL ingest FAILED* (exit code {e.code}) -- check the ingest logs for details.",
+            )
+        raise
