@@ -4,8 +4,10 @@
 
 # When should this CronJob be executed? See
 # https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax for syntax.
+# Interpreted in `timeZone` below (IANA name), not UTC.
 # Default: at 11am every Wednesday
 schedule: "0 11 * * wed"
+timeZone: America/New_York
 
 # Amount of storage needed to download all BDC data.
 dataStorage: 200Mi
@@ -28,7 +30,7 @@ jobExecutor:
     # published from GitHub Releases now (see release-docker-to-renci-containers.yaml),
     # so this must be pinned to a real release tag, not "latest". Bump this after cutting
     # a new release.
-    tag: v0.2.2
+    tag: v0.3.0alpha
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 0

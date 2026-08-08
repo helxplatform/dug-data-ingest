@@ -1,7 +1,12 @@
 # Values file for HEAL ingest
 
 nameOverride: dug-data-ingest-heal
-dataStorage: 200Mi
+# 200Mi was almost-but-not-quite enough for ~1750 study files (ran out of space on study
+# ~1727/~1750) -- generous headroom since each study now carries more metadata
+# (tags, cde_mapping, nih_reporter_link, etc.) than when this was originally sized.
+dataStorage: 2Gi
+# Every Monday at 9am Eastern (timeZone default from the shared values.yaml).
+schedule: "0 9 * * mon"
 jobExecutor:
   script: heal/ingest.sh
   lakeFSRepository: heal-mds-import
@@ -9,4 +14,4 @@ jobExecutor:
     - name: HEAL_CDE_LAKEFS_LOCATION
       value: lakefs://heal-cdes/main/
     - name: HEAL_LAKEFS_OUTPUT
-      value: lakefs://heal-mds-studies/test/
+      value: lakefs://heal-mds-studies/main/

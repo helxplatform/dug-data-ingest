@@ -9,6 +9,7 @@ metadata:
     {{- include "dug-data-ingest.labels" . | nindent 4 }}
 spec:
   schedule: "{{ .Values.schedule }}"
+  timeZone: {{ .Values.timeZone | default "America/New_York" }}
   jobTemplate:
     spec:
       backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}

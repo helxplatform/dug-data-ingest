@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 import requests
 import click
 from pathlib import Path
@@ -9,6 +10,8 @@ import csv
 import json
 from dug_data_model.v2 import DugStudy, DugVariable, DugElementParsedList, SECTION_TYPE, VARIABLE_TYPE
 from lakefs_spec import LakeFSFileSystem
+from lakefs_spec.util import parse as parse_lakefs_uri
+import lakefs as lakefs_sdk
 
 logger = logging.getLogger('dug')
 logger.setLevel(logging.INFO)
@@ -105,12 +108,12 @@ def get_cde_mappings(cde_dir: Path):
     return study_cde_mappings, variable_cde_mappings, len(cde_files)
 
 
-def _get_lakefs_filesystem():
-    """Create a LakeFSFileSystem instance with credentials from environment variables."""
+def _get_lakefs_credentials() -> tuple:
+    """Read and validate lakeFS connection details from environment variables."""
     host = os.environ.get('LAKEFS_SERVER_ENDPOINT_URL')
     username = os.environ.get('LAKEFS_ACCESS_KEY_ID')
     password = os.environ.get('LAKEFS_SECRET_ACCESS_KEY')
-    
+
     if not all([host, username, password]):
         raise ValueError(
             f"Missing LakeFS credentials. Required environment variables: "
@@ -123,8 +126,21 @@ def _get_lakefs_filesystem():
         host = 'https://' + host
         logger.warning(f"LAKEFS_SERVER_ENDPOINT_URL had no scheme; defaulting to https://: {host}")
 
+    return host, username, password
+
+
+def _get_lakefs_filesystem():
+    """Create a LakeFSFileSystem instance with credentials from environment variables."""
+    host, username, password = _get_lakefs_credentials()
     logger.info(f"Initializing LakeFSFileSystem with host={host}, username={username}")
     return LakeFSFileSystem(host=host, username=username, password=password)
+
+
+def _get_lakefs_client() -> lakefs_sdk.Client:
+    """Create a lakeFS SDK client (for branch/commit/merge operations), using the same
+    credentials as _get_lakefs_filesystem()."""
+    host, username, password = _get_lakefs_credentials()
+    return lakefs_sdk.Client(host=host, username=username, password=password)
 
 
 def load_research_normalization(csv_path: Path) -> dict:
@@ -263,6 +279,45 @@ def upload_file_to_lakefs(local_path: Path, lakefs_base_uri: str) -> None:
     dest_uri = f"{base}/{local_path.name}"
     lakefs.put(str(local_path), dest_uri)
     logger.info(f"Uploaded {local_path} -> {dest_uri}")
+
+
+def start_lakefs_ingest_branch(lakefs_output: str):
+    """Create a short-lived branch off of lakefs_output's target branch to stage this
+    ingest run's changes on, so they land as a single atomic commit + merge instead of
+    being written straight to the target branch. Downstream lakeFS Actions can then hook
+    into that one merge event, instead of firing once per raw file upload.
+
+    Returns (branch, target_branch_id, working_uri) -- branch is the lakeFS SDK Branch
+    object for the new ephemeral branch (used later to commit/merge/delete it), and
+    working_uri is lakefs_output with its branch component swapped for the ephemeral
+    branch, for use with the existing lakefs_spec-based upload/list/delete helpers.
+    """
+    repo_id, target_branch_id, prefix = parse_lakefs_uri(lakefs_output)
+    client = _get_lakefs_client()
+    ephemeral_branch_id = f"ingest-{int(time.time())}"
+    branch = lakefs_sdk.Branch(repo_id, ephemeral_branch_id, client=client).create(
+        source_reference=target_branch_id
+    )
+    logger.info(f"Created ephemeral lakeFS branch {repo_id}/{ephemeral_branch_id} from {target_branch_id}")
+    working_uri = f"lakefs://{repo_id}/{ephemeral_branch_id}/{prefix}"
+    return branch, target_branch_id, working_uri
+
+
+def finish_lakefs_ingest_branch(branch, target_branch_id: str, commit_message: str, has_changes: bool) -> str:
+    """Commit the changes staged on the ephemeral branch, merge them into the target
+    branch, and delete the ephemeral branch. If has_changes is False (nothing was
+    written or deleted this run), skips straight to deleting the empty branch -- lakeFS
+    rejects commits with no changes. Returns the merge commit ID, or None if there was
+    nothing to merge."""
+    if not has_changes:
+        logger.info(f"No changes staged on {branch.id}; deleting it without merging")
+        branch.delete()
+        return None
+    branch.commit(message=commit_message)
+    merge_commit_id = branch.merge_into(target_branch_id)
+    branch.delete()
+    logger.info(f"Merged {branch.id} into {target_branch_id} (commit {merge_commit_id}) and deleted {branch.id}")
+    return merge_commit_id
 
 
 def send_slack_notification(webhook_url: str, text: str) -> None:
@@ -631,17 +686,23 @@ def get_heal_studies(output, mds_metadata_endpoint,
     study_ids = list(metadata_ids)
     logger.info(f"Getting information for {len(study_ids)} studies from HEAL MDS")
 
+    ingest_branch = None
+    target_branch_id = None
+    working_lakefs_output = lakefs_output
+    if lakefs_output:
+        ingest_branch, target_branch_id, working_lakefs_output = start_lakefs_ingest_branch(lakefs_output)
+
     existing_remote_files: set[str] = set()
     if lakefs_output:
         try:
-            pre_check_objects = _get_lakefs_filesystem().ls(lakefs_output, detail=True)
+            pre_check_objects = _get_lakefs_filesystem().ls(working_lakefs_output, detail=True)
         except FileNotFoundError:
             pre_check_objects = []
         for obj in pre_check_objects:
             filename = obj['name'].rstrip('/').split('/')[-1]
             if filename.endswith('.dug.json'):
                 existing_remote_files.add(filename)
-        logger.info(f"Found {len(existing_remote_files)} existing study files in lakeFS: {lakefs_output}")
+        logger.info(f"Found {len(existing_remote_files)} existing study files in lakeFS: {working_lakefs_output}")
 
     written_files: set[str] = set()
     # studies = []
@@ -710,14 +771,14 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 json.dump(study_json, f, indent=4)
             written_files.add(file_path.name)
             if lakefs_output:
-                upload_file_to_lakefs(file_path, lakefs_output)
+                upload_file_to_lakefs(file_path, working_lakefs_output)
 
     logger.info(f"Wrote {len(written_files)} study files")
 
     deleted_files = []
     if lakefs_output:
         lakefs = _get_lakefs_filesystem()
-        base = lakefs_output.rstrip('/')
+        base = working_lakefs_output.rstrip('/')
         for filename in existing_remote_files:
             if filename not in written_files:
                 lakefs.rm(f"{base}/{filename}")
@@ -741,6 +802,29 @@ def get_heal_studies(output, mds_metadata_endpoint,
             f"Files deleted from lakeFS: {len(deleted_files)}"
             + (f" ({', '.join(sorted(deleted_files))})" if deleted_files else "")
         )
+
+    if lakefs_output:
+        commit_message = "\n".join(summary_lines)
+        has_changes = bool(written_files or deleted_files)
+        try:
+            merge_commit_id = finish_lakefs_ingest_branch(ingest_branch, target_branch_id, commit_message, has_changes)
+        except Exception as merge_error:
+            summary_lines[0] = "*HEAL ingest ran, but the lakeFS commit/merge FAILED*"
+            summary_lines.append(f"Commit/merge into {target_branch_id}: FAILED -- {merge_error}")
+            logger.error(f"Failed to commit/merge ingest branch {ingest_branch.id}; attempting to clean it up")
+            try:
+                ingest_branch.delete()
+                summary_lines.append(f"Cleaned up ephemeral branch {ingest_branch.id}")
+            except Exception as cleanup_error:
+                logger.error(f"Failed to delete ingest branch {ingest_branch.id} after a failed merge: {cleanup_error}")
+                summary_lines.append(f"Also failed to delete ephemeral branch {ingest_branch.id}: {cleanup_error}")
+            send_slack_notification(os.environ.get('SLACK_WEBHOOK_URL'), "\n".join(summary_lines))
+            raise
+        summary_lines.append(
+            f"Commit/merge into {target_branch_id}: succeeded (commit {merge_commit_id})" if merge_commit_id
+            else f"Commit/merge into {target_branch_id}: skipped, no changes to commit"
+        )
+
     send_slack_notification(os.environ.get('SLACK_WEBHOOK_URL'), "\n".join(summary_lines))
 
     if _tmpdir:
