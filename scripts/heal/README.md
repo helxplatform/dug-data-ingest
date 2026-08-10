@@ -24,11 +24,12 @@ For each study returned by the HEAL Platform MDS (`--mds-metadata-endpoint`):
 2. **Research program/network normalization.** Each study's HDPID is looked up against
    the Research Program/Network API (`--research-program-network-endpoint`), then
    normalized through `--research-normalization-csv` (see below) into a canonical name
-   and, where applicable, an acronym. This produces two forms per study:
-   - a plain canonical name (used in the element's `programs` list)
-   - a canonical name + acronym, e.g. `"(JCOIN): Justice Community Opioid Innovation
-Network"` (used as the tag value, so both the acronym and full name are separately
-     searchable — see `_research_tag_value`)
+   and, where applicable, an acronym. The two are combined into one string, e.g.
+   `"(JCOIN): Justice Community Opioid Innovation Network"` (see `_research_tag_value`) —
+   this combined form is what's used both in the element's `programs` list (so the
+   website's exact-match program filter/facet resolves on the acronym as well as the full
+   name) and as the tag value. Research network has no equivalent `programs` entry — it's
+   tag-only.
 
 3. **Element generation.** Study metadata, variable-level metadata dictionaries, CDE
    mappings, and research program/network tags are assembled into `dug_data_model.v2`

@@ -201,9 +201,13 @@ def _research_tag_value(canonical_name: str, code: str) -> str:
 def get_research_program_network_mappings(endpoint_url: str, normalization_table: dict) -> dict:
     """Fetch HDPID -> normalized research program/network info from the Research Program/Network API.
 
-    Each entry has 'research_program'/'research_network' (canonical names, used for the
-    `programs` list) and 'research_program_tag'/'research_network_tag' (canonical name +
-    code, used for tags -- see _research_tag_value).
+    Each entry has 'research_program'/'research_network' (plain canonical names) and
+    'research_program_tag'/'research_network_tag' (canonical name + code, via
+    _research_tag_value). Only 'research_program_tag' is used downstream -- for the
+    `programs` list (so acronym-only searches/filters resolve, since `programs` is
+    exact-match) and as a tag. 'research_network_tag' is tag-only; research networks are
+    never added to `programs`. The plain 'research_program'/'research_network' values are
+    kept in this dict for completeness but have no consumer today.
 
     Rows without a study_hdp_id can't be used for this per-study lookup and are dropped. A
     handful of study_hdp_ids appear more than once in the source data with the same program
@@ -556,7 +560,7 @@ def guess_data_type(values):
         return "number"
     return "string"
 
-def transform_dds_to_dug(vlmd_dds, study_id, research_program=None,
+def transform_dds_to_dug(vlmd_dds, study_id,
                           research_program_tag=None, research_network_tag=None, vlmd_cde_mappings = {}):
     dug_variables = []
     for vlmd_dd in vlmd_dds:
@@ -581,7 +585,7 @@ def transform_dds_to_dug(vlmd_dds, study_id, research_program=None,
             elem = DugVariable(id=study_id+':'+variable['name'],
                               name=variable['name'],
                               description=variable['description'],
-                              programs=[research_program] if research_program else [],
+                              programs=[research_program_tag] if research_program_tag else [],
                               parents=[k for k in (study_id, variable.get('section', '')) if len(k) > 0],
                               data_type=data_type,
                               is_cde=False
@@ -714,12 +718,10 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 logger.debug(f"Metadata for Study {sid} is not available, Skipping!")
                 continue
             program_network = hdp_program_network_mappings.get(study_details['id'], {})
-            research_program = program_network.get('research_program')
             research_program_tag = program_network.get('research_program_tag')
             research_network_tag = program_network.get('research_network_tag')
             dug_variables = transform_dds_to_dug(study_details['vlmd_dds'],
                                                  study_details['id'],
-                                                 research_program = research_program,
                                                  research_program_tag = research_program_tag,
                                                  research_network_tag = research_network_tag,
                                                  vlmd_cde_mappings = variable_cde_mappings)
@@ -743,7 +745,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
                         id=study_details['id'],
                         name=study_details['study_name'],
                         description=study_details['description'],
-                        programs=[research_program] if research_program else [],
+                        programs=[research_program_tag] if research_program_tag else [],
                         parents=[],
                         action = study_details['action'],
                         abstract=study_details['abstract'],
