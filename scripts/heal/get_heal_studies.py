@@ -476,8 +476,10 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             publication_list = study_metadata['findings']['primary_publications']
         
         repositories = []
+        repository_names = []
         if study_metadata is not None and ('metadata_location' in study_metadata and 'data_repositories' in study_metadata['metadata_location']):
             repositories = [k['repository_study_link'] for k in study_metadata['metadata_location']['data_repositories'] if 'repository_study_link' in k and len(k['repository_study_link']) > 0]
+            repository_names = [k['repository_name'] for k in study_metadata['metadata_location']['data_repositories'] if 'repository_name' in k and len(k['repository_name']) > 0]
 
         nih_reporter_link = None
         if study_metadata is not None and ('metadata_location' in study_metadata and 'nih_reporter_link' in study_metadata['metadata_location']):
@@ -523,6 +525,7 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             'institution': gen3_discovery['institutions'] if gen3_discovery is not None and 'institutions' in gen3_discovery else '',
             'data_availability': data_availability,
             'repositories': repositories,
+            'repository_names': repository_names,
             'vlmd_dds': vlmd_dds,
         }
         return study_details
@@ -758,7 +761,12 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 study.add_tag("Research Program", research_program_tag)
             if research_network_tag:
                 study.add_tag("Research Network", research_network_tag)
-
+            if study_details['pi_list'] is not None and len(study_details['pi_list']) > 0:
+                study.add_tag("Investigators", ",".join(study_details['pi_list']))
+            if len(study_details['repository_names']) > 0:
+                study.add_tag("Repositories", ",".join(study_details['repository_names']))
+            study.add_tag("StudyID", study_details['id'])
+            
             logger.debug(study)
             if dug_variables is None:
                 elements = [study]
