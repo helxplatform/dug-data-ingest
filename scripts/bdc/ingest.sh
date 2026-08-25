@@ -9,6 +9,7 @@ set -uo pipefail  # Exit on undefined vars and pipe failures (but not on command
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
+PYTHON=${PYTHON:-python3}
 
 # Set defaults
 START_DATE=$(date)
@@ -57,7 +58,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Step 1: PicSure data extraction
 log "Extracting PicSure data..."
-python "$SCRIPT_DIR/get_bdc_studies_md_from_picsure.py" --output-dir "$PICSURE_OUTPUT_PATH"
+$PYTHON  "$SCRIPT_DIR/get_bdc_studies_md_from_picsure.py" --output-dir "$PICSURE_OUTPUT_PATH"
 
 # Step 1.1 Find PicSure data file
 sleep 1
@@ -72,7 +73,7 @@ fi
 
 # Step 2: Gen3 data extraction
 log "Extracting Gen3 data..."
-python "$SCRIPT_DIR/get_bdc_studies_md_from_gen3.py" --output-dir "$GEN3_OUTPUT_PATH"
+$PYTHON  "$SCRIPT_DIR/get_bdc_studies_md_from_gen3.py" --output-dir "$GEN3_OUTPUT_PATH"
 
 
 # Step 2.1 Find Gen3 data file
@@ -88,7 +89,7 @@ fi
 
 # Step 3: XML generation
 log "Running dbGaP download with XML generation fallback..."
-python "$SCRIPT_DIR/run_dbgap_xml_gen_fallback.py" --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" --always-generate
+$PYTHON  "$SCRIPT_DIR/run_dbgap_xml_gen_fallback.py" --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" --always-generate
 
 
 
