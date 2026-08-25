@@ -33,12 +33,26 @@ spec:
               image: {{ $jobExecutor.image.repository }}:{{ $jobExecutor.image.tag }}
               imagePullPolicy: {{ $jobExecutor.image.pullPolicy | default "Always" }}
               env:
+                - name: PICSURE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: dug-ingest-secrets
+                      key: picsure-token
                 - name: LAKEFS_HOST
-                  value: {{ $lakeFS.host }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: dug-ingest-secrets
+                      key: lakefs-host
                 - name: LAKEFS_USERNAME
-                  value: {{ $lakeFS.username }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: dug-ingest-secrets
+                      key: lakefs-username
                 - name: LAKEFS_PASSWORD
-                  value: {{ $lakeFS.password }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: dug-ingest-secrets
+                      key: lakefs-password
                 - name: LAKEFS_REPOSITORY
                   value: {{ .Values.jobExecutor.lakeFSRepository }}
                 - name: LAKEFS_TEMPPATH

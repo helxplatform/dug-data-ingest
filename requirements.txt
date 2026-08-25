@@ -6,3 +6,13 @@ requests
 
 # Needed to access LakeFS as a filesystem.
 lakefs-spec~=0.11.1
+
+# Needed for data processing.
+pandas
+numpy
+
+# Needed for PicSure API integration.
+ipython
+git+https://github.com/hms-dbmi/pic-sure-python-client.git
+git+https://github.com/hms-dbmi/pic-sure-python-adapter-hpds.git
+git+https://github.com/hms-dbmi/pic-sure-biodatacatalyst-python-adapter-hpds.git
