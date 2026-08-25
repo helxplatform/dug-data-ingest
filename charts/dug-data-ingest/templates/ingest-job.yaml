@@ -9,6 +9,7 @@ metadata:
     {{- include "dug-data-ingest.labels" . | nindent 4 }}
 spec:
   schedule: "{{ .Values.schedule }}"
+  timeZone: {{ .Values.timeZone | default "America/New_York" }}
   jobTemplate:
     spec:
       backoffLimit: {{ $jobExecutor.backoffLimit | default 0 }}
@@ -56,6 +57,13 @@ spec:
                   value: {{ .Values.jobExecutor.lakeFSRepository }}
                 - name: LAKEFS_TEMPPATH
                   value: /data/lakefs
+                {{- with .Values.slack.webhookUrl }}
+                - name: SLACK_WEBHOOK_URL
+                  value: {{ . }}
+                {{- end }}
+                {{- with $jobExecutor.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
               resources:
                 {{- toYaml $jobExecutor.resources | nindent 16 }}
               command: ["/bin/bash", "{{$script}}"]

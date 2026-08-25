@@ -18,6 +18,8 @@ from collections import defaultdict
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
+
+##### THIS SCRIPT IS OUT OF DATE --- DO NOT USE
 # Some defaults.
 DEFAULT_MDS_ENDPOINT = 'https://healdata.org/mds/metadata'
 PUBLIC_MDS_ENDPOINT = 'https://healdata.org/portal/discovery'

@@ -4,8 +4,10 @@
 
 # When should this CronJob be executed? See
 # https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax for syntax.
+# Interpreted in `timeZone` below (IANA name), not UTC.
 # Default: at 11am every Wednesday
 schedule: "0 11 * * wed"
+timeZone: America/New_York
 
 # Amount of storage needed to download all BDC data.
 dataStorage: 5Gi
@@ -16,11 +18,19 @@ lakeFS:
   username: TODO # see in values-secret.yaml
   password: TODO # see in values-secret.yaml
 
+# Slack incoming webhook for ingest run notifications. Optional -- see values-secret.yaml.
+slack:
+  webhookUrl: ""
+
 # Settings for the Job executor pod.
 jobExecutor:
   image:
     repository: containers.renci.org/helxplatform/dug-data-ingest
-    tag: latest
+    # containers.renci.org prunes tags that don't start with "v" -- images are only
+    # published from GitHub Releases now (see release-docker-to-renci-containers.yaml),
+    # so this must be pinned to a real release tag, not "latest". Bump this after cutting
+    # a new release.
+    tag: v0.3.0alpha
     pullPolicy: Always
   restartPolicy: Never
   backoffLimit: 0

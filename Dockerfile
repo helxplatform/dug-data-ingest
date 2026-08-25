@@ -14,7 +14,10 @@
 # that closely together unless it is unavoidable.
 #
 
-FROM python:3-alpine
+FROM python:3.12-alpine
+
+# uv, for fast dependency installs (also used to build/manage this image's venv).
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # Update packages
 RUN apk update
@@ -38,24 +41,31 @@ RUN apk add --no-cache gcc musl-dev g++ gfortran openblas-dev lapack-dev
 RUN pip install --upgrade pip
 
 # Create a non-root user.
-ENV USER dug-ingest
-ENV HOME /home/$USER
-ENV UID 1000
+ENV USER=dug-ingest
+ENV HOME=/home/$USER
+ENV UID=1000
 
 RUN adduser -D --home $HOME --uid $UID $USER
 
 USER $USER
 WORKDIR $HOME
 
-ENV PATH=$HOME/.local/bin:$PATH
+# Create a venv and put it first on PATH, so `python3`/scripts pick it up with no
+# activation step needed. uv detects and installs into this venv via $VIRTUAL_ENV.
+ENV VIRTUAL_ENV=$HOME/venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+RUN uv venv $VIRTUAL_ENV
 
 # Copy over the requirements file and install it as the local user.
 COPY --chown=$USER requirements.txt .
-RUN pip install --user -r requirements.txt
+RUN uv pip install -r requirements.txt
 
-# Copy over the scripts.
+# Copy over the scripts, then install each script's own requirements.txt (if any) on
+# top of the shared ones above.
 RUN mkdir scripts
 COPY --chown=$USER scripts/ scripts/
+RUN find scripts -mindepth 2 -maxdepth 2 -name requirements.txt -print0 \
+    | xargs -0 -n1 uv pip install -r
 WORKDIR $HOME/scripts
 
 # Note that data should be kept at /data
