@@ -85,7 +85,7 @@ def download_dbgap_study(dbgap_accession_id, dbgap_output_dir, study_name=None):
     ftp.quit()
 
     for ftp_filename in ftp_filelist:
-        if 'data_dict' in ftp_filename:
+        if 'data_dict' in ftp_filename or 'var_report' in ftp_filename:
             with open(f"{local_path}/{ftp_filename}", "wb") as data_dict_file:
                 logging.debug(f"Downloading {ftp_filename} to {local_path}/{ftp_filename}")
 
