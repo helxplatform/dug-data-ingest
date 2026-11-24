@@ -391,7 +391,9 @@ def get_dd_info_from_mds(dd_id:str, dd_label:str,  mds_url:str=None):
         # We standardize so that the top-level 'fields' field is always a list of fields.
         try:
             if "data_dictionary" in result_json and isinstance(result_json["data_dictionary"], list):
-                result_json["fields"] = result_json["data_dictionary"]
+                result_json["fields"] = list(
+                    map(translate_data_dictionary_field, result_json["data_dictionary"])
+                )
             elif (
                 "data_dictionary" in result_json
                 and isinstance(result_json["data_dictionary"], dict)
