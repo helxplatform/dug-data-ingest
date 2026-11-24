@@ -285,6 +285,28 @@ def upload_file_to_lakefs(local_path: Path, lakefs_base_uri: str) -> None:
     logger.info(f"Uploaded {local_path} -> {dest_uri}")
 
 
+# The ephemeral lakeFS branch of the run in progress, from start_lakefs_ingest_branch() until it is
+# merged or deleted. If the run crashes in between, the __main__ handler deletes it through
+# delete_open_ingest_branch(), so failed runs don't leave ingest-<timestamp> branches behind.
+_open_ingest_branch = None
+
+
+def delete_open_ingest_branch() -> str:
+    """Delete the ephemeral branch of the run in progress, if there is one. Never raises.
+    Returns a sentence describing what happened, for the Slack failure message, or '' if no
+    branch was open."""
+    global _open_ingest_branch
+    branch, _open_ingest_branch = _open_ingest_branch, None
+    if branch is None:
+        return ''
+    try:
+        branch.delete()
+        return f"Cleaned up ephemeral branch {branch.id}"
+    except Exception as cleanup_error:
+        logger.error(f"Failed to delete ingest branch {branch.id}: {cleanup_error}")
+        return f"Also failed to delete ephemeral branch {branch.id}: {cleanup_error}"
+
+
 def start_lakefs_ingest_branch(lakefs_output: str):
     """Create a short-lived branch off of lakefs_output's target branch to stage this
     ingest run's changes on, so they land as a single atomic commit + merge instead of
@@ -302,6 +324,8 @@ def start_lakefs_ingest_branch(lakefs_output: str):
     branch = lakefs_sdk.Branch(repo_id, ephemeral_branch_id, client=client).create(
         source_reference=target_branch_id
     )
+    global _open_ingest_branch
+    _open_ingest_branch = branch
     logger.info(f"Created ephemeral lakeFS branch {repo_id}/{ephemeral_branch_id} from {target_branch_id}")
     working_uri = f"lakefs://{repo_id}/{ephemeral_branch_id}/{prefix}"
     return branch, target_branch_id, working_uri
@@ -313,13 +337,16 @@ def finish_lakefs_ingest_branch(branch, target_branch_id: str, commit_message: s
     written or deleted this run), skips straight to deleting the empty branch -- lakeFS
     rejects commits with no changes. Returns the merge commit ID, or None if there was
     nothing to merge."""
+    global _open_ingest_branch
     if not has_changes:
         logger.info(f"No changes staged on {branch.id}; deleting it without merging")
         branch.delete()
+        _open_ingest_branch = None
         return None
     branch.commit(message=commit_message)
     merge_commit_id = branch.merge_into(target_branch_id)
     branch.delete()
+    _open_ingest_branch = None
     logger.info(f"Merged {branch.id} into {target_branch_id} (commit {merge_commit_id}) and deleted {branch.id}")
     return merge_commit_id
 
@@ -838,13 +865,10 @@ def get_heal_studies(output, mds_metadata_endpoint,
             summary_lines[0] = "*HEAL ingest ran, but the lakeFS commit/merge FAILED*"
             summary_lines.append(f"Commit/merge into {target_branch_id}: FAILED -- {merge_error}")
             logger.error(f"Failed to commit/merge ingest branch {ingest_branch.id}; attempting to clean it up")
-            try:
-                ingest_branch.delete()
-                summary_lines.append(f"Cleaned up ephemeral branch {ingest_branch.id}")
-            except Exception as cleanup_error:
-                logger.error(f"Failed to delete ingest branch {ingest_branch.id} after a failed merge: {cleanup_error}")
-                summary_lines.append(f"Also failed to delete ephemeral branch {ingest_branch.id}: {cleanup_error}")
+            summary_lines.append(delete_open_ingest_branch())
             send_slack_notification(os.environ.get('SLACK_WEBHOOK_URL'), "\n".join(summary_lines))
+            # Tells the __main__ handler that Slack has already been told about this failure.
+            merge_error.heal_ingest_notified = True
             raise
         summary_lines.append(
             f"Commit/merge into {target_branch_id}: succeeded (commit {merge_commit_id})" if merge_commit_id
@@ -860,11 +884,24 @@ if __name__ == "__main__":
     try:
         get_heal_studies()
     except SystemExit as e:
-        # Click converts both successful completion and internal errors (bad args,
-        # uncaught exceptions) into SystemExit; only notify on a genuine failure.
+        # Click turns successful completion and its own errors (e.g. bad arguments) into
+        # SystemExit; only notify on a genuine failure.
         if e.code not in (None, 0):
+            cleanup = delete_open_ingest_branch()
             send_slack_notification(
                 os.environ.get('SLACK_WEBHOOK_URL'),
-                f"*HEAL ingest FAILED* (exit code {e.code}) -- check the ingest logs for details.",
+                f"*HEAL ingest FAILED* (exit code {e.code}) -- check the ingest logs for details."
+                + (f"\n{cleanup}" if cleanup else ""),
+            )
+        raise
+    except Exception as e:
+        # Any other exception (a malformed MDS record, a network or lakeFS error) propagates
+        # through click unchanged, so it needs its own notification and branch cleanup.
+        if not getattr(e, 'heal_ingest_notified', False):
+            cleanup = delete_open_ingest_branch()
+            send_slack_notification(
+                os.environ.get('SLACK_WEBHOOK_URL'),
+                f"*HEAL ingest FAILED* ({type(e).__name__}: {e}) -- check the ingest logs for details."
+                + (f"\n{cleanup}" if cleanup else ""),
             )
         raise
