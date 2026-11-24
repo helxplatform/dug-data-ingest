@@ -454,6 +454,10 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             logger.error(f'Could not retrieve gen3 details and NIH reporter for study ID {study_id}')
             return None
 
+        if not gen3_discovery:
+            logger.warning(f"No gen3_discovery found in study file {study_id}, continuing with NIH reporter only.")
+            gen3_discovery = {}
+
         study_metadata = gen3_discovery.get('study_metadata', {})
         minimal_info = gen3_discovery.get('minimal_info', {})
         if not minimal_info:
