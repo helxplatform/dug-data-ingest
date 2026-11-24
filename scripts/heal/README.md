@@ -35,10 +35,22 @@ For each study returned by the HEAL Platform MDS (`--mds-metadata-endpoint`):
    mappings, and research program/network tags are assembled into `dug_data_model.v2`
    `DugStudy`/`DugVariable` objects and written to `<OUTPUT>/<HDPID>.dug.json`.
 
+   **File manifests.** If the study's MDS record lists files (`gen3_discovery.__manifest`,
+   which about 100 studies have), the full list is written to
+   `<OUTPUT>/file_manifests/<HDPID>.json` as `{"id": ..., "files": [...]}`. The entries are copied
+   from the MDS unchanged (`file_name`, `file_size`, `object_id`, and usually `sha256`,
+   `dataset_name`, `repository_name`, `repository_study_link`) and sorted by `file_name`. The
+   study element itself only gets a summary in its `metadata`: `File Count`,
+   `Total File Size (bytes)`, `File Types` (extensions) and `Documentation Files` (README,
+   `dataset_description`, `subjects`, `samples` and similar; see `DOCUMENTATION_FILE_STEMS`).
+   The full list is kept out of the study element because a few studies list thousands of
+   files: HDP00951 lists about 20,000, about 9 MB of JSON. Studies with no manifest get neither.
+
 4. **lakeFS publish** (only if `--lakefs-output` is given). Files aren't written straight
    to the target branch. Instead:
    - a short-lived branch (`ingest-<unix-timestamp>`) is created off the target branch
-   - every upload/delete for this run happens on that branch
+   - every upload/delete for this run happens on that branch, including `file_manifests/`:
+     a manifest is deleted when its study disappears or its manifest becomes empty
    - once the run finishes, the branch is **committed** (commit message = the same
      summary text sent to Slack) and **merged** into the target branch, then deleted
 
