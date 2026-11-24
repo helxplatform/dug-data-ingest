@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Bash strict mode
 set -euo pipefail
@@ -34,12 +34,8 @@ $PYTHON $SCRIPT_DIR/get_heal_studies.py $DATA_DIR/heal/heal_studies \
         --cde-lakefs-location "$CDE_LAKEFS_LOCATION" \
         --lakefs-output "$LAKEFS_OUTPUT" \
         2>&1 | tee $DATA_DIR/logs/get_heal_studies.txt
-
-# Check for errors
-if grep -qi "ERROR" $DATA_DIR/logs/get_heal_studies.txt; then
-    echo "Errors found during ingestion:"
-    grep -i "ERROR" $DATA_DIR/logs/get_heal_studies.txt
-    exit 1
-fi
+# With pipefail (set above), a failed run exits here with get_heal_studies.py's status. Don't grep
+# the log for "ERROR" instead: the script logs non-fatal per-study problems at ERROR level, and by
+# the time it exits the lakeFS merge and the Slack summary have already happened.
 
 echo "Ingestion complete at $(date)"
