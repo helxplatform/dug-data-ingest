@@ -1,7 +1,7 @@
 # HEAL study data-dictionary summary
 
 `summarize_study_data_dictionaries.py` reports how rich each HEAL study's data dictionary is,
-as a CSV with one row per study. It reads a directory of `<HDPID>.dug.json` files in the
+and which files the study lists, as a CSV with one row per study. It reads a directory of `<HDPID>.dug.json` files in the
 `dug_data_model` v2 format, which is what the HEAL MDS study ingest writes to
 `lakefs://heal-mds-studies/`. Sync that repository locally first (e.g. into `data/heal-mds-studies/`).
 
@@ -21,6 +21,10 @@ python3 summarize_study_data_dictionaries.py data/heal-mds-studies --program RE-
 
 # Every study, to stdout
 python3 summarize_study_data_dictionaries.py data/heal-mds-studies
+
+# Also list every file in the selected studies, one row per file
+python3 summarize_study_data_dictionaries.py data/heal-mds-studies --program RE-JOIN \
+    --output studies.csv --files-output files.csv
 ```
 
 `--study` and `--program` can be combined: the result is the union of the two. A study passed to
@@ -44,6 +48,16 @@ over about 1,200 studies takes well under a second.
 | `vars_with_constraints` | variables with any other `metadata` key (`minimum`, `maximum`, `pattern`, …) |
 | `vars_with_cde_mapping` | variables mapped to a CDE (`metadata.cde_mapping`) |
 | `num_cde_sections`, `cde_sections` | the study's `section_list`: CDE sections it is registered against |
+| `file_manifest_present` | whether `file_manifests/<HDPID>.json` exists next to the study files |
+| `num_files`, `total_file_size_bytes`, `file_types`, `documentation_files` | the file summary the ingest puts in the study's `metadata` (`File Count`, `Total File Size (bytes)`, `File Types`, `Documentation Files`) |
+
+The `--files-output` CSV has one row per file, from `file_manifests/<HDPID>.json`: `hdp_id`,
+`file_name`, `file_size`, `dataset_name`, `repository_name`, `repository_study_link`,
+`object_id` and `sha256`. These are copied from the HEAL Platform MDS (`gen3_discovery.__manifest`),
+and not every repository fills in all of them.
+
+The file columns are blank for output written before the ingest started producing file
+manifests.
 
 ## Reading the output
 

@@ -17,14 +17,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import summarize_study_data_dictionaries as sdd  # noqa: E402
 
 
-def _study(hdp_id, programs=(), sections=(), variable_ids=(), repositories=None):
+def _study(hdp_id, programs=(), sections=(), variable_ids=(), repositories=None, file_summary=None):
     tags = [{'category': 'Research Program', 'value': p} for p in programs]
     if repositories:
         tags.append({'category': 'Repositories', 'value': repositories})
+    metadata = {'Data Availability': 'available', 'Data Package Links': ['https://doi.org/x']}
+    metadata.update(file_summary or {})
     return {
         'id': hdp_id, 'name': f'Study {hdp_id}', 'type': 'study',
         'programs': list(programs), 'tags': tags,
-        'metadata': {'Data Availability': 'available', 'Data Package Links': ['https://doi.org/x']},
+        'metadata': metadata,
         'variable_list': list(variable_ids), 'section_list': list(sections),
     }
 
@@ -43,8 +45,18 @@ class SummarizeTests(unittest.TestCase):
         self.dir = Path(self._tmp.name)
         self.write('HDP00001', [
             _study('HDP00001', programs=['(RE-JOIN): Restoring Joint Health'],
-                   sections=['gad2', 'peg'], repositories='SPARC,SPARC'),
+                   sections=['gad2', 'peg'], repositories='SPARC,SPARC',
+                   file_summary={'File Count': 2, 'Total File Size (bytes)': 30,
+                                 'File Types': ['ims', 'xlsx'],
+                                 'Documentation Files': ['files/dataset_description.xlsx']}),
         ])
+        manifest_dir = self.dir / sdd.FILE_MANIFEST_DIR
+        manifest_dir.mkdir()
+        (manifest_dir / 'HDP00001.json').write_text(json.dumps({'id': 'HDP00001', 'files': [
+            {'file_name': 'files/dataset_description.xlsx', 'file_size': 10, 'object_id': 'o1',
+             'repository_name': 'SPARC'},
+            {'file_name': 'files/primary/a.ims', 'file_size': 20, 'object_id': 'o2'},
+        ]}))
         self.write('HDP00002', [
             _study('HDP00002', programs=['(ACT NOW): Neonatal'], variable_ids=['a', 'b', 'c']),
             _variable('HDP00002', 'a', section='form1', description='A',
@@ -78,6 +90,35 @@ class SummarizeTests(unittest.TestCase):
         self.assertEqual(row['vars_with_permissible_values'], 1)
         self.assertEqual(row['vars_with_constraints'], 1)
         self.assertEqual(row['vars_with_cde_mapping'], 1)
+
+    def test_file_summary_columns(self):
+        row = sdd.summarize_study_file(self.dir / 'HDP00001.dug.json')
+        self.assertEqual(row['file_manifest_present'], 'true')
+        self.assertEqual(row['num_files'], 2)
+        self.assertEqual(row['total_file_size_bytes'], 30)
+        self.assertEqual(row['file_types'], 'ims; xlsx')
+        self.assertEqual(row['documentation_files'], 'files/dataset_description.xlsx')
+
+    def test_study_without_file_manifest(self):
+        row = sdd.summarize_study_file(self.dir / 'HDP00002.dug.json')
+        self.assertEqual(row['file_manifest_present'], 'false')
+        self.assertEqual(row['num_files'], '')
+
+    def test_file_rows(self):
+        rows = sdd.file_rows(self.dir, ['HDP00001', 'HDP00002', 'HDP99999'])
+        self.assertEqual([r['file_name'] for r in rows],
+                         ['files/dataset_description.xlsx', 'files/primary/a.ims'])
+        self.assertEqual(rows[0]['hdp_id'], 'HDP00001')
+        self.assertEqual(rows[0]['repository_name'], 'SPARC')
+        self.assertEqual(rows[1]['repository_name'], '')
+
+    def test_main_writes_files_output(self):
+        files_output = self.dir / 'files.csv'
+        sdd.main([str(self.dir), '-p', 'RE-JOIN', '-o', str(self.dir / 's.csv'),
+                  '--files-output', str(files_output)])
+        rows = list(csv.DictReader(files_output.open()))
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(list(rows[0]), sdd.FILE_COLUMNS)
 
     def test_no_filter_returns_all(self):
         ids = [r['hdp_id'] for r in sdd.summarize_directory(self.dir)]

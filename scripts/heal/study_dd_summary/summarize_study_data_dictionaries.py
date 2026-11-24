@@ -7,8 +7,13 @@ what the HEAL MDS study ingest writes (and publishes to lakeFS, e.g. `lakefs://h
 Each file is a JSON list holding one `study` element plus zero or more `variable` elements.
 
 The output is a CSV with one row per study: how many variables it has, how many of those have a
-description, a non-string data type, permissible values, other constraints or a CDE mapping, and
-which CDE sections the study is registered against. See COLUMNS below for the full list.
+description, a non-string data type, permissible values, other constraints or a CDE mapping, which
+CDE sections the study is registered against, and a summary of the files the study lists. See
+COLUMNS below for the full list.
+
+With --files-output, it also writes a second CSV with one row per file, read from the study's
+`file_manifests/<HDPID>.json` (see FILE_MANIFEST_DIR). Outputs written before the ingest started
+producing file manifests have no file information, so those columns are blank.
 
 This script only reads local files and uses nothing beyond the Python standard library, so it can
 be copied out of this repository and run on its own. It doesn't import anything from the ingest
@@ -29,6 +34,10 @@ Examples:
 
     # Every study in the directory, to stdout.
     python3 summarize_study_data_dictionaries.py data/heal-mds-studies
+
+    # Also list every file in those studies, one row per file.
+    python3 summarize_study_data_dictionaries.py data/heal-mds-studies --program RE-JOIN \\
+        --output studies.csv --files-output files.csv
 """
 
 import argparse
@@ -39,6 +48,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 FILE_SUFFIX = '.dug.json'
+
+# Subdirectory of the input directory where the ingest writes each study's full file list, as
+# <HDPID>.json holding {"id": ..., "files": [...]}. Must match FILE_MANIFEST_DIR in the ingest.
+FILE_MANIFEST_DIR = 'file_manifests'
+
+# Study metadata keys written by the ingest's summarize_file_manifest(), and the columns they go in.
+FILE_SUMMARY_COLUMNS = {
+    'File Count': 'num_files',
+    'Total File Size (bytes)': 'total_file_size_bytes',
+    'File Types': 'file_types',
+    'Documentation Files': 'documentation_files',
+}
 
 # Tag categories whose values are matched by --program, alongside the element's `programs` list.
 PROGRAM_TAG_CATEGORIES = ('Research Program', 'Research Network')
@@ -68,6 +89,24 @@ COLUMNS = [
     'vars_with_cde_mapping',
     'num_cde_sections',
     'cde_sections',
+    'file_manifest_present',
+    'num_files',
+    'total_file_size_bytes',
+    'file_types',
+    'documentation_files',
+]
+
+# Columns of the --files-output CSV. The ones after hdp_id are copied from the manifest entries;
+# not every repository provides sha256, dataset_name, repository_name or repository_study_link.
+FILE_COLUMNS = [
+    'hdp_id',
+    'file_name',
+    'file_size',
+    'dataset_name',
+    'repository_name',
+    'repository_study_link',
+    'object_id',
+    'sha256',
 ]
 
 
@@ -173,7 +212,39 @@ def summarize_study_file(path):
         'cde_sections': LIST_SEPARATOR.join(cde_sections),
     }
     row.update(summarize_variables(variables))
+
+    manifest_path = path.parent / FILE_MANIFEST_DIR / (row['hdp_id'] + '.json')
+    row['file_manifest_present'] = 'true' if manifest_path.exists() else 'false'
+    for key, column in FILE_SUMMARY_COLUMNS.items():
+        value = metadata.get(key, '')
+        row[column] = LIST_SEPARATOR.join(value) if isinstance(value, list) else value
     return row
+
+
+def read_file_manifest(input_dir, hdp_id):
+    """
+    Return the file entries from a study's file manifest, or [] if it has none.
+
+    :param input_dir: Directory holding `<HDPID>.dug.json` files and the FILE_MANIFEST_DIR subdirectory.
+    :param hdp_id: The study's HDP ID.
+    :return: A list of dicts, one per file, as the ingest copied them from the HEAL Platform MDS.
+    """
+    path = Path(input_dir) / FILE_MANIFEST_DIR / (hdp_id + '.json')
+    if not path.exists():
+        return []
+    with path.open() as f:
+        return json.load(f).get('files') or []
+
+
+def file_rows(input_dir, hdp_ids):
+    """Return one --files-output row per file in the listed studies' file manifests."""
+    rows = []
+    for hdp_id in hdp_ids:
+        for entry in read_file_manifest(input_dir, hdp_id):
+            row = {column: entry.get(column, '') for column in FILE_COLUMNS}
+            row['hdp_id'] = hdp_id
+            rows.append(row)
+    return rows
 
 
 def summarize_directory(input_dir, study_ids=(), program=None):
@@ -210,11 +281,17 @@ def summarize_directory(input_dir, study_ids=(), program=None):
     return [rows[key] for key in sorted(rows)]
 
 
-def write_csv(rows, output):
-    """Write summary rows as CSV to an open text file."""
-    writer = csv.DictWriter(output, fieldnames=COLUMNS)
+def write_csv(rows, output, columns=COLUMNS):
+    """Write rows as CSV to an open text file."""
+    writer = csv.DictWriter(output, fieldnames=columns)
     writer.writeheader()
     writer.writerows(rows)
+
+
+def _write_csv_file(rows, path, columns=COLUMNS):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('w', newline='') as f:
+        write_csv(rows, f, columns)
 
 
 def main(argv=None):
@@ -231,16 +308,21 @@ def main(argv=None):
     parser.add_argument('--output', '-o', type=Path,
                         help='CSV file to write (parent directories are created). '
                              'Defaults to stdout.')
+    parser.add_argument('--files-output', '-f', type=Path,
+                        help='Also write a CSV listing every file in the selected studies\' '
+                             'file manifests, one row per file.')
     args = parser.parse_args(argv)
 
     rows = summarize_directory(args.input_dir, args.study, args.program)
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        with args.output.open('w', newline='') as f:
-            write_csv(rows, f)
+        _write_csv_file(rows, args.output)
         print(f'Wrote {len(rows)} studies to {args.output}', file=sys.stderr)
     else:
         write_csv(rows, sys.stdout)
+    if args.files_output:
+        files = file_rows(args.input_dir, [row['hdp_id'] for row in rows])
+        _write_csv_file(files, args.files_output, FILE_COLUMNS)
+        print(f'Wrote {len(files)} files to {args.files_output}', file=sys.stderr)
     return 0
 
 
