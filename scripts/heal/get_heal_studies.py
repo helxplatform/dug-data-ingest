@@ -428,7 +428,9 @@ def get_dd_info_from_mds(dd_id:str, dd_label:str,  mds_url:str=None):
                 f"Could not determine fields for data dictionary {dd_id}, skipping: {ve}"
             )
             result_json["fields"] = []
-        return result_json
+    # Returned for the 404 placeholder too, so a missing dictionary contributes no fields
+    # instead of a None that callers would crash on.
+    return result_json
 
 def get_study_info_from_mds(study_id:str, mds_url:str=None):
         if not mds_url:
