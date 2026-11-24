@@ -681,7 +681,7 @@ def transform_dds_to_dug(vlmd_dds, study_id,
          'Local file writing still runs regardless of this option.'
 )
 @click.option(
-     '--debug', default=False,
+     '--debug', is_flag=True, default=False,
      help='Run in debug mode.'
 )
 def get_heal_studies(output, mds_metadata_endpoint,
