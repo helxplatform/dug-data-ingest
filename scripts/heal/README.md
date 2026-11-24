@@ -110,6 +110,12 @@ appears twice with conflicting `canonical_name`/`code`, the first row wins and a
 is logged. Values the API returns that aren't in this table pass through unchanged (also
 logged, as a single summary warning listing all distinct unmapped values for that run).
 
+The other CSVs in `data/` (`ResearchNetworksMappedToHDPID_Feb2025.csv`,
+`ResearchProgramsMappedToHDPID_Sept2025.csv` and
+`ResearchNetworksResearchProgramsMappedToHDPID_Feb2026.csv`) are snapshots of the HDPID →
+research program/network mappings that earlier versions of the ingest read before the mappings
+came from the API. Nothing reads them now.
+
 ## Deploying to the cluster
 
 The chart is `charts/dug-data-ingest` (a generic CronJob + PVC template shared with BDC's
