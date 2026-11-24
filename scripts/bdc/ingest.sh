@@ -89,7 +89,7 @@ fi
 
 # Step 3: XML generation
 log "Running dbGaP download with XML generation fallback..."
-$PYTHON  "$SCRIPT_DIR/run_dbgap_xml_gen_fallback.py" --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE" --always-generate
+python "$SCRIPT_DIR/run_dbgap_xml_gen_fallback.py" --output-dir "$XML_OUTPUT_PATH" --gen3-csv "$GEN3_DATA_FILE" --picsure-csv "$PICSURE_DATA_FILE"
 
 
 
