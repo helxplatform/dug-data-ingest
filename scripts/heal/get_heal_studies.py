@@ -660,7 +660,7 @@ def transform_dds_to_dug(vlmd_dds, study_id,
     '--research-normalization-csv',
     default=DEFAULT_RESEARCH_NORMALIZATION_CSV,
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help='CSV (code,raw_value,canonical_name) used to normalize research program/network '
+    help='CSV (raw_value,code,canonical_name) used to normalize research program/network '
          'values into canonical names and tags.')
 @click.option(
     '--cde-location',

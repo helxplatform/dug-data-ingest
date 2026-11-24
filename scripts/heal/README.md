@@ -3,7 +3,7 @@
 `get_heal_studies.py` generates Dug-format (`dug_data_model`) study and variable
 JSON files from the HEAL Platform MDS, and (optionally) publishes them to lakeFS.
 
-`get_heal_platform_mds_data_dicts.py` is deprecated
+`get_heal_studies.py` replaces `get_heal_platform_mds_data_dicts.py`, which has been removed.
 
 ## Data flow
 
