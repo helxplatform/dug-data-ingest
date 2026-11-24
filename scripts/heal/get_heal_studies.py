@@ -31,6 +31,22 @@ HEAL_STUDY_GUID_TYPES = [
     'unregistered_discovery_metadata'       # Studies added to the Platform MDS but without the investigator registering the study.
 ]
 
+# Each study's full file list (gen3_discovery.__manifest) is written to
+# <OUTPUT>/FILE_MANIFEST_DIR/<HDPID>.json instead of into the study's .dug.json: a few studies list
+# thousands of files (HDP00951 lists ~20,000, ~9 MB of JSON), which would bloat the study element
+# that gets indexed. The study element only carries a summary (see summarize_file_manifest). The
+# subdirectory, and the .json rather than .dug.json suffix, keep these files out of anything that
+# loads study elements by globbing *.dug.json.
+FILE_MANIFEST_DIR = 'file_manifests'
+
+# File names (without extension, case-insensitive) treated as dataset documentation when
+# summarizing a manifest. Mostly the SPARC Dataset Structure's top-level metadata files, which
+# is where most HEAL manifests with documentation come from.
+DOCUMENTATION_FILE_STEMS = {
+    'readme', 'changelog', 'changes', 'dataset_description', 'code_description',
+    'subjects', 'samples', 'manifest', 'submission', 'performances', 'resources', 'sites',
+}
+
 def _process_cde_json(json_obj, study_cde_mappings, variable_cde_candidates, source_name=''):
     elements = DugElementParsedList.validate_python(json_obj)
     section_obj = [e for e in elements if e.type == SECTION_TYPE]
@@ -492,8 +508,9 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         AND
         _guid_type is set to discovery_metadata OR unregistered_discovery_metadata
         """
+        file_manifest = gen3_discovery.get("__manifest") or []
         data_availability = ''
-        if ("__manifest" in gen3_discovery and len(gen3_discovery["__manifest"]) > 0) or len(repositories) > 0:
+        if len(file_manifest) > 0 or len(repositories) > 0:
             data_availability = "available"
 
         vlmd_dds = []
@@ -527,8 +544,53 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
             'repositories': repositories,
             'repository_names': repository_names,
             'vlmd_dds': vlmd_dds,
+            'file_manifest': file_manifest,
         }
         return study_details
+
+
+def summarize_file_manifest(file_manifest: list) -> dict:
+    """Summarize a study's file manifest (gen3_discovery.__manifest) as DugStudy metadata.
+
+    Every value is a number or a list of strings, the same shapes the study's other metadata
+    fields use, so nothing here creates new nested fields in the search index. Returns {} for an
+    empty manifest. The full list goes to a separate file; see FILE_MANIFEST_DIR.
+    """
+    if not file_manifest:
+        return {}
+    file_names = [f.get('file_name') or '' for f in file_manifest]
+    file_types = sorted({
+        Path(name).suffix.lower().lstrip('.') for name in file_names if Path(name).suffix
+    })
+    documentation_files = sorted({
+        name for name in file_names
+        if name and Path(name).name.split('.')[0].lower() in DOCUMENTATION_FILE_STEMS
+    })
+    summary = {
+        'File Count': len(file_manifest),
+        'Total File Size (bytes)': sum(f.get('file_size') or 0 for f in file_manifest),
+    }
+    if file_types:
+        summary['File Types'] = file_types
+    if documentation_files:
+        summary['Documentation Files'] = documentation_files
+    return summary
+
+
+def write_file_manifest(output_dir: Path, study_id: str, file_manifest: list) -> Path:
+    """Write a study's full file manifest to output_dir/FILE_MANIFEST_DIR/<study_id>.json.
+
+    Entries are copied from the MDS unchanged (file_name, file_size, object_id, and, for most
+    repositories, sha256, dataset_name, repository_name and repository_study_link), sorted by
+    file_name and then object_id so that unchanged manifests produce identical files between runs.
+    """
+    manifest_dir = Path(output_dir) / FILE_MANIFEST_DIR
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    path = manifest_dir / f"{study_id}.json"
+    entries = sorted(file_manifest, key=lambda f: (f.get('file_name') or '', f.get('object_id') or ''))
+    with open(path, 'w') as f:
+        json.dump({'id': study_id, 'files': entries}, f, indent=2)
+    return path
 
 def guess_data_type(values):
     """
@@ -699,19 +761,26 @@ def get_heal_studies(output, mds_metadata_endpoint,
     if lakefs_output:
         ingest_branch, target_branch_id, working_lakefs_output = start_lakefs_ingest_branch(lakefs_output)
 
+    # Paths here, in written_files and in deleted_files are relative to the output root, e.g.
+    # "HDP00937.dug.json" or "file_manifests/HDP00937.json".
     existing_remote_files: set[str] = set()
     if lakefs_output:
-        try:
-            pre_check_objects = _get_lakefs_filesystem().ls(working_lakefs_output, detail=True)
-        except FileNotFoundError:
-            pre_check_objects = []
-        for obj in pre_check_objects:
-            filename = obj['name'].rstrip('/').split('/')[-1]
-            if filename.endswith('.dug.json'):
-                existing_remote_files.add(filename)
-        logger.info(f"Found {len(existing_remote_files)} existing study files in lakeFS: {working_lakefs_output}")
+        lakefs_fs = _get_lakefs_filesystem()
+        base = working_lakefs_output.rstrip('/')
+        for subdir, suffix in (('', '.dug.json'), (FILE_MANIFEST_DIR, '.json')):
+            prefix = f"{subdir}/" if subdir else ''
+            try:
+                pre_check_objects = lakefs_fs.ls(f"{base}/{subdir}" if subdir else base, detail=True)
+            except FileNotFoundError:
+                pre_check_objects = []
+            for obj in pre_check_objects:
+                filename = obj['name'].rstrip('/').split('/')[-1]
+                if obj.get('type') != 'directory' and filename.endswith(suffix):
+                    existing_remote_files.add(prefix + filename)
+        logger.info(f"Found {len(existing_remote_files)} existing study and file manifest files in lakeFS: {working_lakefs_output}")
 
     written_files: set[str] = set()
+    studies_with_file_manifests = 0
     # studies = []
     for _ , sid in enumerate(study_ids):
             # if count==20:
@@ -743,7 +812,8 @@ def get_heal_studies(output, mds_metadata_endpoint,
                 metadata['Data Package Links'] = study_details['repositories']
             if len(study_details['nih_reporter_link']) > 0:
                 metadata['NIH Reporter Link'] = study_details['nih_reporter_link']
-            
+            metadata.update(summarize_file_manifest(study_details['file_manifest']))
+
             study = DugStudy(
                         id=study_details['id'],
                         name=study_details['study_name'],
@@ -783,13 +853,21 @@ def get_heal_studies(output, mds_metadata_endpoint,
             if lakefs_output:
                 upload_file_to_lakefs(file_path, working_lakefs_output)
 
-    logger.info(f"Wrote {len(written_files)} study files")
+            if study_details['file_manifest']:
+                manifest_path = write_file_manifest(Path(output), study_details['id'], study_details['file_manifest'])
+                written_files.add(f"{FILE_MANIFEST_DIR}/{manifest_path.name}")
+                studies_with_file_manifests += 1
+                if lakefs_output:
+                    upload_file_to_lakefs(manifest_path, f"{working_lakefs_output.rstrip('/')}/{FILE_MANIFEST_DIR}")
+
+    logger.info(f"Wrote {len(written_files)} files ({studies_with_file_manifests} of them file manifests)")
 
     deleted_files = []
     if lakefs_output:
         lakefs = _get_lakefs_filesystem()
         base = working_lakefs_output.rstrip('/')
-        for filename in existing_remote_files:
+        # A study whose manifest is now empty has its old manifest file deleted here too.
+        for filename in sorted(existing_remote_files):
             if filename not in written_files:
                 lakefs.rm(f"{base}/{filename}")
                 deleted_files.append(filename)
@@ -804,7 +882,8 @@ def get_heal_studies(output, mds_metadata_endpoint,
         f"CDE files read: {cde_file_count}",
         f"Studies mapped to a CDE section: {len(study_cde_mappings)}",
         f"Studies with variable-level CDE mappings: {len(variable_cde_mappings)} ({total_variable_mappings} mappings)",
-        f"Study files written: {len(written_files)}",
+        f"Study files written: {len(written_files) - studies_with_file_manifests}",
+        f"File manifests written: {studies_with_file_manifests}",
     ]
     if lakefs_output:
         summary_lines.append(f"Files uploaded to lakeFS: {len(written_files)}")
