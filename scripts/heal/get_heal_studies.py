@@ -705,7 +705,7 @@ def get_heal_studies(output, mds_metadata_endpoint,
     logging.basicConfig(
         level=log_level,
         handlers=[
-            logging.FileHandler(Path(output) / "log.txt"),
+            logging.FileHandler(Path(output) / "log.txt", mode="w"),  # one run per log, not appended forever
             logging.StreamHandler(),
         ],
         force=True,

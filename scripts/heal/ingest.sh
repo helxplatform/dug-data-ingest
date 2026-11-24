@@ -28,6 +28,11 @@ export LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY="$LAKEFS_PASSWORD"
 
 mkdir -p $DATA_DIR/logs
 
+# Start from an empty output directory: it lives on a persistent volume, so files from earlier runs
+# (including studies that no longer exist) would otherwise pile up there. lakeFS is unaffected, since
+# only files written by this run are uploaded.
+rm -rf "${DATA_DIR:?}/heal/heal_studies"
+
 # Generate and upload HEAL MDS study files
 echo "Generating HEAL MDS study files from Platform MDS at $(date)"
 $PYTHON $SCRIPT_DIR/get_heal_studies.py $DATA_DIR/heal/heal_studies \
