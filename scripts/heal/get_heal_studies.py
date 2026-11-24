@@ -477,7 +477,15 @@ def get_study_info_from_mds(study_id:str, mds_url:str=None):
         if gen3_discovery is not None and 'investigators_name' in gen3_discovery and len(gen3_discovery['investigators_name']) > 0:
                 pi_list = gen3_discovery['investigators_name']
         elif study_metadata is not None and 'citation' in study_metadata and 'investigators' in study_metadata['citation']:
-            pi_list = [ " ".join([k['investigator_first_name'], k["investigator_middle_initial"], k["investigator_last_name"]]) for k in study_metadata['citation']['investigators']]
+            # Any part of an investigator's name can be missing or null (often the middle initial).
+            pi_list = [
+                " ".join(part for part in (
+                    k.get('investigator_first_name'),
+                    k.get('investigator_middle_initial'),
+                    k.get('investigator_last_name'),
+                ) if part)
+                for k in study_metadata['citation']['investigators']
+            ]
 
         publication_list = []
         if study_metadata is not None and ('findings' in study_metadata and 'primary_publications' in study_metadata['findings']):
@@ -595,9 +603,9 @@ def transform_dds_to_dug(vlmd_dds, study_id,
 
             elem = DugVariable(id=study_id+':'+variable['name'],
                               name=variable['name'],
-                              description=variable['description'],
+                              description=variable.get('description') or '',
                               programs=[research_program_tag] if research_program_tag else [],
-                              parents=[k for k in (study_id, variable.get('section', '')) if len(k) > 0],
+                              parents=[k for k in (study_id, variable.get('section')) if k],
                               data_type=data_type,
                               is_cde=False
                               ) ## This would be changed to study id
